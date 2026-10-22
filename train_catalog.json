@@ -1,0 +1,416 @@
+{
+ "source": "eticket.uzrailpass.uz",
+ "collected": "2026-10-21",
+ "trains": {
+  "1": {
+   "brand": "Yo'lovchi",
+   "route": "Toshkent Markaziy — Olmaota",
+   "classes": {
+    "2С": "O'rindiqli",
+    "2Д": "Kupe",
+    "1Б": "SV",
+    "2Б": "Kupe"
+   }
+  },
+  "54": {
+   "brand": "Tezyurar",
+   "route": "Qo'ng'irot — Toshkent janubiy; Toshkent janubiy — Qo'ng'irot",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe",
+    "1Л": "SV",
+    "1А": "Lyuks"
+   }
+  },
+  "56": {
+   "brand": "Yo'lovchi",
+   "route": "Toshkent Janubiy — Xiva; Xiva — Toshkent janubiy",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe",
+    "1Л": "SV"
+   }
+  },
+  "58": {
+   "brand": "Yo'lovchi",
+   "route": "Shovot — Toshkent janubiy; Toshkent janubiy — Shovot",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe",
+    "1Л": "SV"
+   }
+  },
+  "71": {
+   "brand": "Yo'lovchi",
+   "route": "Olot — Toshkkent  janubiy",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe",
+    "1Л": "SV"
+   }
+  },
+  "72": {
+   "brand": "Yo'lovchi",
+   "route": "Toshkent janubiy — Olot",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe",
+    "1Л": "SV"
+   }
+  },
+  "76": {
+   "brand": "Yo'lovchi",
+   "route": "Toshkent janubiy — Хiva; Xiva — Toshkent janubiy",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "80": {
+   "brand": "Yo'lovchi",
+   "route": "Termiz — Toshkent janubiy; Toshkent janubiy — Termez",
+   "classes": {
+    "3П": "Plaskartli",
+    "3О": "Umumiy",
+    "2К": "Kupe",
+    "1Л": "SV"
+   }
+  },
+  "82": {
+   "brand": "Yo'lovchi",
+   "route": "Sariosiyo — Toshkent janubiy; Toshkent janubiy — Sariosiyo",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe",
+    "1Л": "SV"
+   }
+  },
+  "91": {
+   "brand": "Yo'lovchi",
+   "route": "Andijon 1 — Toshkent Markaziy",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "96": {
+   "brand": "Yo'lovchi",
+   "route": "Toshkent Markaziy — ANDIJON 1",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "97": {
+   "brand": "Yo'lovchi",
+   "route": "Andijon 1 — Toshkent Markaziy",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "123": {
+   "brand": "Yo'lovchi",
+   "route": "Volgograd — Toshkent Markaziy",
+   "classes": {
+    "3Л": "Plaskartli",
+    "2У": "Kupe"
+   }
+  },
+  "124": {
+   "brand": "Yo'lovchi",
+   "route": "Toshkent Markaziy — Volgograd",
+   "classes": {}
+  },
+  "125": {
+   "brand": "Yo'lovchi",
+   "route": "Andijon 1 — Urganch; Andijon — Xiva",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "126": {
+   "brand": "Yo'lovchi",
+   "route": "Urganch — Andijon 1; Xiva — Andijan",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "127": {
+   "brand": "Yo'lovchi",
+   "route": "Andijon 1 — Qung'irot",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "128": {
+   "brand": "Yo'lovchi",
+   "route": "Qung`irot — Andijon",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "129": {
+   "brand": "Yo'lovchi",
+   "route": "Andijon — Termiz",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "130": {
+   "brand": "Yo'lovchi",
+   "route": "Termiz — Andijon",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "302": {
+   "brand": "Yo'lovchi",
+   "route": "Toshkent — Dushanbe",
+   "classes": {}
+  },
+  "305": {
+   "brand": "Yo'lovchi",
+   "route": "Toshkent Markaziy — Moskva",
+   "classes": {
+    "3Л": "Plaskartli",
+    "2Л": "Kupe",
+    "3У": "Plaskartli",
+    "2У": "Kupe"
+   }
+  },
+  "359": {
+   "brand": "Yo'lovchi",
+   "route": "Xo'jand — Volgograd",
+   "classes": {
+    "3П": "Plaskartli",
+    "2К": "Kupe"
+   }
+  },
+  "703": {
+   "brand": "Nasaf",
+   "route": "Qarshi — Toshkent Markaziy",
+   "classes": {
+    "2В": "O'rindiqli"
+   }
+  },
+  "704": {
+   "brand": "Nasaf",
+   "route": "Samarqand — Qarshi",
+   "classes": {
+    "2В": "O'rindiqli"
+   }
+  },
+  "709": {
+   "brand": "Sharq",
+   "route": "Buxoro — Toshkent Markaziy",
+   "classes": {
+    "1С": "O'rindiqli",
+    "1В": "O'rindiqli",
+    "2В": "O'rindiqli"
+   }
+  },
+  "710": {
+   "brand": "Sharq",
+   "route": "Toshkent Markaziy — Buxoro",
+   "classes": {
+    "1С": "O'rindiqli",
+    "1В": "O'rindiqli",
+    "2В": "O'rindiqli"
+   }
+  },
+  "711": {
+   "brand": "Sharq",
+   "route": "Buxoro — Toshkent Markaziy",
+   "classes": {
+    "2В": "O'rindiqli",
+    "1С": "O'rindiqli"
+   }
+  },
+  "712": {
+   "brand": "Sharq",
+   "route": "Toshkent Shimoliy — Buxoro",
+   "classes": {
+    "2В": "O'rindiqli",
+    "1С": "O'rindiqli"
+   }
+  },
+  "715": {
+   "brand": "Nasaf",
+   "route": "Qarshi — Toshkent Markaziy",
+   "classes": {
+    "2В": "O'rindiqli"
+   }
+  },
+  "716": {
+   "brand": "Nasaf",
+   "route": "Toshkent Markaziy — Qarshi",
+   "classes": {
+    "1С": "O'rindiqli",
+    "1В": "O'rindiqli",
+    "2В": "O'rindiqli"
+   }
+  },
+  "729": {
+   "brand": "NU",
+   "route": "Andijon — Toshkent Markaziy",
+   "classes": {
+    "2В": "O'rindiqli"
+   }
+  },
+  "730": {
+   "brand": "NU",
+   "route": "Toshkent Markaziy — Andijon",
+   "classes": {
+    "2В": "O'rindiqli"
+   }
+  },
+  "731": {
+   "brand": "NU",
+   "route": "Andijon — Toshkent Shimoliy",
+   "classes": {
+    "2В": "O'rindiqli"
+   }
+  },
+  "732": {
+   "brand": "NU",
+   "route": "Toshkent Shimoliy — Andijon",
+   "classes": {
+    "2В": "O'rindiqli"
+   }
+  },
+  "733": {
+   "brand": "O'zbekiston",
+   "route": "Andijon — Toshkent Markaziy",
+   "classes": {
+    "1С": "Бизнес",
+    "1В": "ВИП",
+    "2Б": "Эконом"
+   }
+  },
+  "734": {
+   "brand": "O'zbekiston",
+   "route": "Toshkent Markaziy — Andijon",
+   "classes": {
+    "1С": "Бизнес",
+    "1В": "ВИП",
+    "2Б": "Эконом"
+   }
+  },
+  "751": {
+   "brand": "Jaloliddin Manguberdi",
+   "route": "Xiva — Toshkent Markaziy",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "752": {
+   "brand": "Jaloliddin Manguberdi",
+   "route": "Toshkent Центральный  — Xiva",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "753": {
+   "brand": "Jaloliddin Manguberdi",
+   "route": "ХИВА — ТОШКЕНТ-ЙУЛО",
+   "classes": {
+    "1В": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "763": {
+   "brand": "Afrosiyob",
+   "route": "Qarshi — Toshkent Markaziy",
+   "classes": {}
+  },
+  "764": {
+   "brand": "Afrosiyob",
+   "route": "Toshkent Markaziy — Qarshi",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "765": {
+   "brand": "Afrosiyob",
+   "route": "Buxoro — Toshkent Markaziy",
+   "classes": {
+    "2Е": "O'rindiqli"
+   }
+  },
+  "766": {
+   "brand": "Afrosiyob",
+   "route": "Toshkent Markaziy — Buxoro",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "767": {
+   "brand": "Afrosiyob",
+   "route": "Samarqand — Toshkent",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "768": {
+   "brand": "Afrosiyob",
+   "route": "Toshkent Markaziy — Samarqand",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "769": {
+   "brand": "Afrosiyob",
+   "route": "Buxoro — Toshkent Markaziy",
+   "classes": {
+    "2Е": "O'rindiqli"
+   }
+  },
+  "770": {
+   "brand": "Afrosiyob",
+   "route": "Toshkent Markaziy — Buxoro",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "771": {
+   "brand": "Afrosiyob",
+   "route": "Buxoro — Toshkent Markaziy",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "772": {
+   "brand": "Afrosiyob",
+   "route": "Toshkent Markaziy — Buxoro",
+   "classes": {
+    "1С": "O'rindiqli",
+    "2Е": "O'rindiqli"
+   }
+  },
+  "777": {
+   "brand": "Afrosiyob",
+   "route": "Buxoro — Toshkent Markaziy",
+   "classes": {}
+  },
+  "778": {
+   "brand": "Afrosiyob",
+   "route": "Toshkent Markaziy — Buxoro",
+   "classes": {}
+  }
+ }
+}

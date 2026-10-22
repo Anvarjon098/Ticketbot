@@ -1,0 +1,16 @@
+# Maxfiy ma'lumotlar — GitHub'ga yuborilmaydi
+.env
+account.json
+site_token.txt
+users.json
+monitors.json
+access.json
+
+# Ishlash vaqtidagi fayllar
+*.log
+*.pid
+__pycache__/
+.venv/
+
+# Katta binar fayl (README dagi ko'rsatma bo'yicha yuklab olinadi)
+bin/cloudflared.exe

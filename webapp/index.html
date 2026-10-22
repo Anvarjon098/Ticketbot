@@ -1,0 +1,1033 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Poyezd chiptalari</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-secondary-bg-color, #f1f2f6);
+    --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+    --text: var(--tg-theme-text-color, #15171c);
+    --hint: var(--tg-theme-hint-color, #8a8f98);
+    --accent: var(--tg-theme-button-color, #2481cc);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --link: var(--tg-theme-link-color, #2481cc);
+    --danger: var(--tg-theme-destructive-text-color, #e5484d);
+    --ok: #2fa84f;
+    --warn: #e59a14;
+    --line: color-mix(in srgb, var(--hint) 22%, transparent);
+    --soft: color-mix(in srgb, var(--accent) 12%, transparent);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { position: relative; padding: 12px 12px calc(84px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 6px 4px 14px; padding-right: 96px; }
+  h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--hint); margin: 18px 6px 8px; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .between { justify-content: space-between; }
+  .muted { color: var(--hint); font-size: 13px; }
+  .big { font-size: 18px; font-weight: 600; }
+  .grow { flex: 1; min-width: 0; }
+  .hidden { display: none !important; }
+
+  label.f { display: block; font-size: 13px; color: var(--hint); margin: 10px 2px 4px; }
+  input, select { width: 100%; padding: 11px 12px; font: inherit; color: var(--text);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px; outline: none; }
+  input:focus { border-color: var(--accent); }
+  .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; font: inherit;
+    font-weight: 600; background: var(--accent); color: var(--accent-text); cursor: pointer; margin-top: 12px; }
+  .btn.secondary { background: var(--soft); color: var(--accent); }
+  .btn.danger { background: transparent; color: var(--danger); }
+  .btn:disabled { opacity: .5; }
+  .btn.small { display: inline-block; width: auto; padding: 8px 12px; margin: 0; font-size: 14px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { padding: 7px 12px; border-radius: 999px; background: var(--soft); color: var(--accent);
+    font-size: 14px; border: 1px solid transparent; cursor: pointer; }
+  .chip.on { background: var(--accent); color: var(--accent-text); }
+  .seg { display: flex; background: var(--bg); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; padding: 9px; border: 0; border-radius: 8px; background: transparent;
+    font: inherit; color: var(--text); cursor: pointer; }
+  .seg button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+  .langbar { position: absolute; top: 16px; right: 12px; display: flex; gap: 2px; padding: 3px;
+    background: var(--card); border-radius: 999px; box-shadow: 0 1px 3px rgba(0,0,0,.08); z-index: 5; }
+  .langbar button { border: 0; background: transparent; color: var(--hint); font: inherit; font-size: 13px;
+    font-weight: 600; padding: 5px 10px; border-radius: 999px; cursor: pointer; }
+  .langbar button.on { background: var(--accent); color: var(--accent-text); }
+
+  .route { position: relative; }
+  .swap { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px;
+    border-radius: 50%; border: 0; background: var(--soft); color: var(--accent); font-size: 18px; cursor: pointer; }
+  .suggest { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-top: 4px; overflow: hidden; }
+  .suggest div { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .suggest div:last-child { border-bottom: 0; }
+
+  .train { cursor: pointer; border: 2px solid transparent; }
+  .train.sel { border-color: var(--accent); }
+  .times { font-size: 20px; font-weight: 700; }
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .badge.no { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+  .badge.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .badge.info { background: var(--soft); color: var(--accent); }
+
+  .check { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .check:last-child { border-bottom: 0; }
+  .box { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--line); flex: none;
+    display: grid; place-items: center; color: var(--accent-text); font-size: 14px; }
+  .check.on .box { background: var(--accent); border-color: var(--accent); }
+  .seats { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+  .seat { min-width: 38px; padding: 8px 6px; text-align: center; border-radius: 8px; font-weight: 700;
+    background: var(--accent); color: var(--accent-text); }
+  .avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: var(--accent-text);
+    display: grid; place-items: center; font-size: 24px; font-weight: 700; flex: none; overflow: hidden; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .kv:last-child { border-bottom: 0; }
+  .kv span:first-child { color: var(--hint); }
+  .kv span:last-child { text-align: right; font-weight: 500; }
+  .empty { text-align: center; color: var(--hint); padding: 28px 12px; }
+  .empty .ico { font-size: 40px; margin-bottom: 6px; }
+
+  nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--card);
+    border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+  nav button { flex: 1; border: 0; background: none; padding: 8px 2px 9px; color: var(--hint);
+    font: inherit; font-size: 11px; cursor: pointer; }
+  nav button .i { display: block; font-size: 22px; line-height: 1.2; filter: grayscale(1); opacity: .7; }
+  nav button.on { color: var(--accent); font-weight: 600; }
+  nav button.on .i { filter: none; opacity: 1; }
+  .spinner { width: 22px; height: 22px; border: 3px solid var(--soft); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; margin: 20px auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* vagon sxemasi (saytdagi rasm): bo'sh — ko'k, band — kulrang, tanlangan — yashil */
+  .cars { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px; scrollbar-width: none; }
+  .cars::-webkit-scrollbar { display: none; }
+  .car-tab { flex: none; min-width: 92px; padding: 8px 10px; border-radius: 12px; background: var(--bg);
+    border: 2px solid transparent; cursor: pointer; text-align: left; font: inherit; color: var(--text); }
+  .car-tab.on { border-color: var(--accent); background: var(--soft); }
+  .car-tab b { display: block; font-size: 15px; }
+  .car-tab span { display: block; font-size: 12px; color: var(--hint); white-space: nowrap; }
+  .scheme { overflow-x: auto; margin: 10px -14px 0; padding: 4px 14px 8px; background: #fff; border-radius: 10px; }
+  .scheme svg { display: block; height: 190px; width: auto; max-width: none; }
+  .scheme [data-seat].free { cursor: pointer; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--hint); margin-top: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+  .seat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 6px; margin-top: 10px; }
+  .seat-grid button { padding: 9px 0; border: 0; border-radius: 8px; font: inherit; font-weight: 700; color: #fff; }
+  .seat-grid .free { background: #187cee; cursor: pointer; }
+  .seat-grid .busy { background: #e4e4e4; color: #bebebe; }
+  .seat-grid .picked { background: #5cb85c; }
+  .seat.picked { background: #5cb85c; color: #fff; }
+  #toast { position: fixed; left: 12px; right: 12px; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 20;
+    background: var(--text); color: var(--card); padding: 12px 14px; border-radius: 12px; font-size: 14px;
+    transition: opacity .25s; opacity: 0; pointer-events: none; }
+  #toast.show { opacity: .95; }
+</style>
+</head>
+<body>
+<main>
+  <div class="langbar" id="langbar">
+    <button type="button" data-lang="uz">UZ</button><button type="button" data-lang="ru">RU</button>
+  </div>
+
+  <!-- ===================== BILET OLISH ===================== -->
+  <section id="tab-buy">
+    <h1 data-i18n="buy_title">Bilet olish</h1>
+    <div class="card">
+      <div class="route">
+        <label class="f" data-i18n="from">Qayerdan</label>
+        <input id="from" data-i18n-ph="station_ph" autocomplete="off">
+        <div id="from-sug" class="suggest hidden"></div>
+        <label class="f" data-i18n="to">Qayerga</label>
+        <input id="to" data-i18n-ph="station_ph" autocomplete="off">
+        <div id="to-sug" class="suggest hidden"></div>
+        <button class="swap" id="swap" data-i18n-title="swap">⇅</button>
+      </div>
+      <div class="chips" id="popular"></div>
+      <label class="f" data-i18n="date">Sana</label>
+      <input type="date" id="date">
+      <div class="chips" id="date-chips"></div>
+      <button class="btn" id="search" data-i18n="search">Reyslarni qidirish</button>
+    </div>
+
+    <div id="trains"></div>
+
+    <div id="trip" class="hidden">
+      <h2 data-i18n="passengers">Yo'lovchilar</h2>
+      <div class="card" id="pick-passengers"></div>
+      <div id="car-block">
+        <h2 data-i18n="car_type">Kategoriya</h2>
+        <div class="card">
+          <div class="muted" data-i18n="cat_hint"></div>
+          <div class="chips" id="car-types"></div>
+        </div>
+      </div>
+      <div id="trip-actions"></div>
+    </div>
+  </section>
+
+  <!-- ===================== CHIPTALAR ===================== -->
+  <section id="tab-tickets" class="hidden">
+    <h1 data-i18n="tickets_title">Chiptalar</h1>
+    <div id="tickets"></div>
+  </section>
+
+  <!-- ===================== HAMROHLAR ===================== -->
+  <section id="tab-companions" class="hidden">
+    <h1 data-i18n="companions_title">Hamrohlar</h1>
+    <div id="companions"></div>
+    <button class="btn" id="add-companion" data-i18n="add_companion">＋ Hamroh qo'shish</button>
+    <div id="companion-form" class="card hidden" style="margin-top:12px"></div>
+  </section>
+
+  <!-- ===================== PROFIL ===================== -->
+  <section id="tab-profile" class="hidden">
+    <h1 data-i18n="profile_title">Profil</h1>
+    <div class="card row">
+      <div class="avatar" id="avatar"></div>
+      <div class="grow">
+        <div class="big" id="tg-name"></div>
+        <div class="muted" id="tg-phone"></div>
+      </div>
+    </div>
+    <h2 data-i18n="language">Til</h2>
+    <div class="card">
+      <div class="seg" id="lang-seg">
+        <button type="button" data-lang="uz">O'zbekcha</button>
+        <button type="button" data-lang="ru">Русский</button>
+      </div>
+    </div>
+    <h2 data-i18n="my_data">Mening ma'lumotlarim</h2>
+    <div id="self-card"></div>
+    <div id="self-form" class="card hidden"></div>
+    <div id="site-block" class="hidden">
+      <h2 data-i18n="site_account">Sayt akkaunti (eticket.uzrailpass.uz)</h2>
+      <div class="card">
+        <div id="site-status" class="muted"></div>
+        <label class="f" data-i18n="phone">Telefon raqam</label>
+        <input id="site-phone" type="tel" placeholder="+998901234567">
+        <label class="f" data-i18n="password">Parol</label>
+        <input id="site-password" type="password" data-i18n-ph="password_ph">
+        <button class="btn secondary" id="site-login" data-i18n="site_login">Saytga kirish</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-tab="profile"><span class="i">👤</span><span data-i18n="nav_profile">Profil</span></button>
+  <button data-tab="tickets"><span class="i">🎟</span><span data-i18n="nav_tickets">Chiptalar</span></button>
+  <button data-tab="companions"><span class="i">👥</span><span data-i18n="nav_companions">Hamrohlar</span></button>
+  <button data-tab="buy" class="on"><span class="i">🚆</span><span data-i18n="nav_buy">Bilet olish</span></button>
+</nav>
+<div id="toast"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+tg?.ready(); tg?.expand();
+
+// ---------- tarjimalar ----------
+const I18N = {
+  uz: {
+    page_title: "Poyezd chiptalari",
+    buy_title: "Bilet olish", tickets_title: "Chiptalar", companions_title: "Hamrohlar", profile_title: "Profil",
+    nav_buy: "Bilet olish", nav_tickets: "Chiptalar", nav_companions: "Hamrohlar", nav_profile: "Profil",
+    from: "Qayerdan", to: "Qayerga", station_ph: "Stansiya nomi", swap: "Almashtirish", date: "Sana",
+    search: "Reyslarni qidirish", passengers: "Yo'lovchilar", car_type: "Kategoriya",
+    cat_hint: "Qaysi kategoriyalar sizga mos? Bir yoki bir nechtasini belgilang.", all_categories: "Hammasi",
+    any_category: "istalgan kategoriya", cat_sold: "joy yo'q",
+    total_seats: "Jami bo'sh joylar: {n}", lower: "pastki", upper: "yuqori", side_lower: "yon pastki", side_upper: "yon yuqori",
+    no_free_cat_title: "Tanlangan kategoriyada bo'sh joy yo'q",
+    no_free_cat_text: "Bot reysni kuzatadi va {cats} bo'yicha joy chiqishi bilan {n} kishiga avtomatik bron qilib, xabar beradi.",
+    add_companion: "＋ Hamroh qo'shish", language: "Til", my_data: "Mening ma'lumotlarim",
+    site_account: "Sayt akkaunti (eticket.uzrailpass.uz)", phone: "Telefon raqam", password: "Parol",
+    password_ph: "Sayt paroli", site_login: "Saytga kirish",
+    not_found: "Topilmadi", today: "Bugun", tomorrow: "Ertaga", after_tomorrow: "Indinga", som: "so'm",
+    err_pick_stations: "Qayerdan va qayerga stansiyalarini ro'yxatdan tanlang",
+    err_same_station: "Stansiyalar bir xil bo'lmasin",
+    err_need_self: "Avval Profil bo'limida o'z ma'lumotlaringizni kiriting",
+    no_trains: "Bu kunga reys topilmadi", selected_train: "Tanlangan reys", other_train: "↩ Boshqa reys",
+    n_trains: "{date} · {n} ta reys", n_seats: "{n} joy", no_seats: "joy yo'q", on_way: "{time} yo'lda",
+    from_price: "{price}dan", sold_out_hint: "🔔 Tanlang — joy chiqishi bilan avtomatik bron qilinadi",
+    add_new_companion: "＋ Yangi hamroh qo'shish", any_type: "Farqi yo'q",
+    pick_one: "Kamida bitta yo'lovchini belgilang.", no_free_title: "Bo'sh joy yo'q",
+    no_free_text: "Bot reysni kuzatadi va joy chiqishi bilan {n} kishiga avtomatik bron qilib, xabar beradi.",
+    mon_strict: "🔔 Kuzatish: faqat ketma-ket joy", mon_loose: "🔔 Kuzatish: bir vagonda bo'lsa yetarli",
+    tier_all: "Hammasi", tier_upper: "Faqat tepasi", tier_lower: "Faqat pastki",
+    pick_car: "Vagonni tanlang", car_n: "{n}-vagon", pick_seats: "Sxemadan {n} ta joy tanlang",
+    picked_n: "Tanlandi: {k} / {n}", leg_free: "bo'sh", leg_busy: "band", leg_picked: "tanlangan",
+    no_scheme: "Bu vagon sxemasi topilmadi — joy raqamini tanlang:", too_many: "{n} kishi uchun {n} ta joy tanlash mumkin",
+    pick_all_first: "Har bir yo'lovchiga joy tanlang ({k} / {n})", no_cars: "Tanlangan kategoriyada joyi bor vagon yo'q",
+    find_seats: "🔍 {n} kishiga ketma-ket joy topish", not_found_title: "Bitta vagonda {n} ta joy topilmadi",
+    not_found_text: "Boshqa vagon turini tanlang yoki kuzatuvga qo'ying.", car: "Vagon",
+    consecutive: "ketma-ket", nearby: "yaqin joylar", total: "Jami narx", book: "✅ Bron qilish",
+    wait_consecutive: "🔔 Ketma-ket joy chiqishini kutish",
+    booked_alert: "Bron qilindi! Vagon {car}, joylar: {seats}.\nTo'lovni saytda tezda amalga oshiring.",
+    monitor_alert: "Kuzatuv boshlandi. Har {s} sekundda tekshiriladi, joy chiqishi bilan bron qilib, botda xabar beraman.",
+    booked_h: "Bron qilingan", departure: "Jo'nash", arrival: "Yetib borish", seats: "Joylar", price: "Narx",
+    order: "Buyurtma", pay: "💳 Saytda to'lash",
+    cancel_booking: "❌ Bronni bekor qilish", st_cancelled: "bekor qilingan", cancelled_ok: "Bron bekor qilindi",
+    st_failed: "amalga oshmagan", st_expired: "muddati tugagan", st_paid: "to'langan",
+    pay_left: "To'lov uchun qoldi", until: "{time} gacha",
+    remove_booking: "Ro'yxatdan o'chirish", removed_ok: "Ro'yxatdan o'chirildi", clear_inactive: "Tozalash ({n})",
+    cleared_ok: "{n} ta bron ro'yxatdan o'chirildi",
+    confirm_clear: "Bekor qilingan, amalga oshmagan va muddati tugagan bronlar ro'yxatdan o'chirilsinmi? Saytdagi buyurtmalarga ta'sir qilmaydi.",
+    confirm_cancel: "Bronni bekor qilasizmi? Joylar bo'shatiladi va qaytarib bo'lmaydi.", monitors_h: "Kuzatuvlar", st_booked: "bron qilindi",
+    st_watching: "kuzatilmoqda · {n}", st_stopped: "to'xtagan", train: "Poyezd", people: "{n} kishi",
+    strict: "faqat ketma-ket", loose: "bir vagonda", delete: "🗑 O'chirish", no_tickets: "Hozircha chipta yo'q.",
+    companions_empty: "Hamrohlar yo'q.<br>Bir marta qo'shing — keyin bilet olishda ro'yxatdan tanlaysiz.",
+    edit: "✏️ Tahrirlash", confirm_delete: "{name} ro'yxatdan o'chirilsinmi?",
+    last_name: "Familiya", first_name: "Ism", middle_name: "Otasining ismi", birthday: "Tug'ilgan sana",
+    gender: "Jinsi", passport_full: "Hujjat seriya va raqami", passport: "Pasport", male: "Erkak", female: "Ayol",
+    doc_type: "Hujjat", doc_passport: "Pasport", doc_id: "ID-karta",
+    save: "Saqlash", cancel: "Bekor qilish", saved: "Saqlandi", user: "Foydalanuvchi",
+    no_phone: "Telefon raqam botda yuborilmagan",
+    fill_once: "Bilet olish uchun o'z ma'lumotlaringizni bir marta kiriting.", enter_data: "Ma'lumotlarni kiritish",
+    status: "Holat: {s}", logged_in: "Saytga kirildi ✅", wait: "Kuting...",
+    open_in_tg: "Ilovani Telegram bot orqali oching.", fill_first: "Avval o'z ma'lumotlaringizni kiriting",
+    error_n: "Xato ({n})",
+    ph_last: "Karimov", ph_first: "Aziz", ph_middle: "Akmalovich",
+  },
+  ru: {
+    page_title: "Ж/д билеты",
+    buy_title: "Купить билет", tickets_title: "Билеты", companions_title: "Попутчики", profile_title: "Профиль",
+    nav_buy: "Купить", nav_tickets: "Билеты", nav_companions: "Попутчики", nav_profile: "Профиль",
+    from: "Откуда", to: "Куда", station_ph: "Название станции", swap: "Поменять местами", date: "Дата",
+    search: "Найти поезда", passengers: "Пассажиры", car_type: "Категория",
+    cat_hint: "Какие категории вам подходят? Отметьте одну или несколько.", all_categories: "Любая",
+    any_category: "любая категория", cat_sold: "нет мест",
+    total_seats: "Всего свободных мест: {n}", lower: "нижние", upper: "верхние", side_lower: "боковые нижние", side_upper: "боковые верхние",
+    no_free_cat_title: "В выбранной категории нет свободных мест",
+    no_free_cat_text: "Бот будет следить за поездом и, как только появятся места ({cats}), автоматически забронирует их на {n} чел. и пришлёт уведомление.",
+    add_companion: "＋ Добавить попутчика", language: "Язык", my_data: "Мои данные",
+    site_account: "Аккаунт на сайте (eticket.uzrailpass.uz)", phone: "Номер телефона", password: "Пароль",
+    password_ph: "Пароль от сайта", site_login: "Войти на сайт",
+    not_found: "Не найдено", today: "Сегодня", tomorrow: "Завтра", after_tomorrow: "Послезавтра", som: "сум",
+    err_pick_stations: "Выберите станции отправления и назначения из списка",
+    err_same_station: "Станции не должны совпадать",
+    err_need_self: "Сначала заполните свои данные в разделе «Профиль»",
+    no_trains: "На эту дату поездов нет", selected_train: "Выбранный поезд", other_train: "↩ Другой поезд",
+    n_trains: "{date} · поездов: {n}", n_seats: "мест: {n}", no_seats: "нет мест", on_way: "в пути {time}",
+    from_price: "от {price}", sold_out_hint: "🔔 Выберите — забронируем автоматически, как только появятся места",
+    add_new_companion: "＋ Добавить нового попутчика", any_type: "Любой",
+    pick_one: "Отметьте хотя бы одного пассажира.", no_free_title: "Свободных мест нет",
+    no_free_text: "Бот будет следить за поездом и, как только появятся места, автоматически забронирует их на {n} чел. и пришлёт уведомление.",
+    mon_strict: "🔔 Следить: только места подряд", mon_loose: "🔔 Следить: достаточно в одном вагоне",
+    tier_all: "Все", tier_upper: "Только верхние", tier_lower: "Только нижние",
+    pick_car: "Выберите вагон", car_n: "Вагон {n}", pick_seats: "Выберите на схеме мест: {n}",
+    picked_n: "Выбрано: {k} / {n}", leg_free: "свободно", leg_busy: "занято", leg_picked: "выбрано",
+    no_scheme: "Схема этого вагона не найдена — выберите номер места:", too_many: "На {n} чел. можно выбрать {n} мест(а)",
+    pick_all_first: "Выберите место каждому пассажиру ({k} / {n})", no_cars: "В выбранной категории нет вагонов со свободными местами",
+    find_seats: "🔍 Найти места подряд на {n} чел.", not_found_title: "В одном вагоне нет {n} свободных мест",
+    not_found_text: "Выберите другой тип вагона или поставьте поезд на отслеживание.", car: "Вагон",
+    consecutive: "подряд", nearby: "рядом", total: "Итого", book: "✅ Забронировать",
+    wait_consecutive: "🔔 Ждать места подряд",
+    booked_alert: "Забронировано! Вагон {car}, места: {seats}.\nОплатите на сайте как можно скорее.",
+    monitor_alert: "Отслеживание запущено. Проверка каждые {s} сек.; как только появятся места — забронирую и сообщу в боте.",
+    booked_h: "Забронировано", departure: "Отправление", arrival: "Прибытие", seats: "Места", price: "Цена",
+    order: "Заказ", pay: "💳 Оплатить на сайте",
+    cancel_booking: "❌ Отменить бронь", st_cancelled: "отменено", cancelled_ok: "Бронь отменена",
+    st_failed: "не оформлено", st_expired: "срок истёк", st_paid: "оплачено",
+    pay_left: "Осталось на оплату", until: "до {time}",
+    remove_booking: "Удалить из списка", removed_ok: "Удалено из списка", clear_inactive: "Очистить ({n})",
+    cleared_ok: "Удалено броней: {n}",
+    confirm_clear: "Удалить из списка отменённые, неоформленные и просроченные брони? На заказы на сайте это не влияет.",
+    confirm_cancel: "Отменить бронь? Места будут освобождены, вернуть их будет нельзя.", monitors_h: "Отслеживания", st_booked: "забронировано",
+    st_watching: "отслеживается · {n}", st_stopped: "остановлено", train: "Поезд", people: "{n} чел.",
+    strict: "только подряд", loose: "в одном вагоне", delete: "🗑 Удалить", no_tickets: "Билетов пока нет.",
+    companions_empty: "Попутчиков нет.<br>Добавьте один раз — потом выбирайте из списка при покупке.",
+    edit: "✏️ Изменить", confirm_delete: "Удалить {name} из списка?",
+    last_name: "Фамилия", first_name: "Имя", middle_name: "Отчество", birthday: "Дата рождения",
+    gender: "Пол", passport_full: "Серия и номер документа", passport: "Паспорт", male: "Мужской", female: "Женский",
+    doc_type: "Документ", doc_passport: "Паспорт", doc_id: "ID-карта",
+    save: "Сохранить", cancel: "Отмена", saved: "Сохранено", user: "Пользователь",
+    no_phone: "Номер телефона не отправлен в боте",
+    fill_once: "Чтобы покупать билеты, один раз заполните свои данные.", enter_data: "Заполнить данные",
+    status: "Статус: {s}", logged_in: "Вход выполнен ✅", wait: "Подождите...",
+    open_in_tg: "Откройте приложение через Telegram-бота.", fill_first: "Сначала заполните свои данные",
+    error_n: "Ошибка ({n})",
+    ph_last: "Каримов", ph_first: "Азиз", ph_middle: "Акмалович",
+  },
+};
+// Mashhur stansiyalar: [o'zbekcha, ruscha, saytdagi nomi]
+const POPULAR = [["Toshkent","Ташкент","TOSHKENT"],["Samarqand","Самарканд","SAMARQAND"],["Buxoro","Бухара","BUXORO"],
+  ["Navoiy","Навои","NAVOIY"],["Qarshi","Карши","QARSHI"],["Termiz","Термез","TERMIZ"],["Andijon","Андижан","ANDIJON"],
+  ["Namangan","Наманган","NAMANGAN"],["Qo'qon","Коканд","QOQON"],["Jizzax","Джизак","JIZZAX"],
+  ["Urganch","Ургенч","URGENCH"],["Xiva","Хива","XIVA"],["Nukus","Нукус","NUKUS"]];
+
+let LANG = "uz";
+function t(key, params = {}) {
+  let s = I18N[LANG][key] ?? I18N.uz[key] ?? key;
+  for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, v);
+  return s;
+}
+function applyStatic() {
+  document.documentElement.lang = LANG;
+  document.title = t("page_title");
+  document.querySelectorAll("[data-i18n]").forEach(el => el.textContent = t(el.dataset.i18n));
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => el.placeholder = t(el.dataset.i18nPh));
+  document.querySelectorAll("[data-i18n-title]").forEach(el => el.title = t(el.dataset.i18nTitle));
+  document.querySelectorAll("[data-lang]").forEach(b => b.classList.toggle("on", b.dataset.lang === LANG));
+}
+// Til Telegram bulutida (barcha qurilmalarda) va brauzerda saqlanadi
+function saveLang(lang) {
+  try { localStorage.setItem("lang", lang); } catch (e) {}
+  try { tg?.CloudStorage?.setItem("lang", lang); } catch (e) {}
+}
+async function loadLang() {
+  try { const v = localStorage.getItem("lang"); if (v === "uz" || v === "ru") return v; } catch (e) {}
+  const cloud = await new Promise(resolve => {
+    setTimeout(() => resolve(null), 1500);
+    try { tg?.CloudStorage ? tg.CloudStorage.getItem("lang", (err, v) => resolve(err ? null : v)) : resolve(null); }
+    catch (e) { resolve(null); }
+  });
+  if (cloud === "uz" || cloud === "ru") return cloud;
+  return (tg?.initDataUnsafe?.user?.language_code || "").startsWith("ru") ? "ru" : "uz";
+}
+async function setLang(lang) {
+  if (lang === LANG) return;
+  LANG = lang; saveLang(lang); applyStatic(); haptic();
+  renderPopular(); renderDates();
+  if (!state.me) return;
+  try { state.me = await api("/api/me"); } catch (e) {}  // sayt holati matni yangi tilda
+  const current = document.querySelector("nav button.on")?.dataset.tab;
+  if (current === "profile") renderProfile();
+  if (current === "companions") renderCompanions();
+  if (current === "tickets") loadTickets();
+  if (state.train) { renderTrains(); renderPassengerPick(); renderCarTypes(); renderActions(); }
+  else if (state.trains.length) $("search").click();  // reys nomlarini yangi tilda qayta olamiz
+}
+document.querySelectorAll("[data-lang]").forEach(b => b.onclick = () => setLang(b.dataset.lang));
+
+// ---------- yordamchilar ----------
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = (v) => v == null ? "" : Number(v).toLocaleString("ru-RU").replace(/\s|,/g, " ") + " " + t("som");
+const genderLabel = (g) => t(g === "FEMALE" ? "female" : "male");
+
+const state = { me: null, from: null, to: null, trains: [], train: null, selected: new Set(), categories: new Set(), cars: [], carKey: null, picked: [] };
+const catName = (c) => c["name_" + LANG] || c.code;
+const catNames = (codes) => codes.length
+  ? codes.map(code => catName((state.trainCats || []).find(c => c.code === code) || { code })).join(", ")
+  : t("any_category");
+
+function toast(msg) {
+  const el = $("toast"); el.textContent = msg; el.classList.add("show");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 3500);
+}
+function haptic(type = "light") { tg?.HapticFeedback?.impactOccurred(type); }
+function fullName(p) { return [p.last_name, p.first_name, p.middle_name].filter(Boolean).join(" "); }
+function fmtDate(iso) { const [y, m, d] = iso.split("-"); return `${d}.${m}.${y}`; }
+function isoLocal(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+function alertThen(msg, then) { tg?.showAlert ? tg.showAlert(msg, then) : (toast(msg), then()); }
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    method: opts.method || "GET",
+    headers: { "X-Telegram-Init-Data": tg?.initData || "", "X-Lang": LANG, "Content-Type": "application/json" },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || t("error_n", { n: res.status })), { status: res.status });
+  return data;
+}
+async function run(btn, fn) {
+  if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = t("wait"); }
+  try { return await fn(); }
+  catch (e) { toast(e.message); tg?.HapticFeedback?.notificationOccurred("error"); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label; } }
+}
+
+// ---------- tablar ----------
+function showTab(name) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
+  document.querySelectorAll("main > section").forEach(s => s.classList.toggle("hidden", s.id !== "tab-" + name));
+  window.scrollTo(0, 0);
+  if (name === "tickets") loadTickets();
+  if (name === "companions") renderCompanions();
+  if (name === "profile") renderProfile();
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { haptic(); showTab(b.dataset.tab); });
+
+// ---------- yo'lovchi formasi (Profil va Hamrohlar uchun umumiy) ----------
+function passengerForm(container, { isSelf, initial, onDone }) {
+  const p = initial || {};
+  container.innerHTML = `
+    <label class="f">${t("last_name")}</label><input name="last_name" value="${esc(p.last_name)}" placeholder="${t("ph_last")}">
+    <label class="f">${t("first_name")}</label><input name="first_name" value="${esc(p.first_name)}" placeholder="${t("ph_first")}">
+    <label class="f">${t("middle_name")}</label><input name="middle_name" value="${esc(p.middle_name)}" placeholder="${t("ph_middle")}">
+    <label class="f">${t("birthday")}</label><input name="birthday" type="date" value="${esc(p.birthday)}">
+    <label class="f">${t("gender")}</label>
+    <div class="seg" data-gender="${esc(p.gender || "")}">
+      <button type="button" data-g="MALE">👨 ${t("male")}</button><button type="button" data-g="FEMALE">👩 ${t("female")}</button>
+    </div>
+    <label class="f">${t("doc_type")}</label>
+    <div class="seg" data-doc="${esc(p.doc_type || guessDocType(p.passport))}" id="doc-seg">
+      <button type="button" data-d="ПУ">🛂 ${t("doc_passport")}</button><button type="button" data-d="УЛ">🪪 ${t("doc_id")}</button>
+    </div>
+    <label class="f">${t("passport_full")}</label>
+    <input name="passport" value="${esc(p.passport)}" placeholder="AA1234567" style="text-transform:uppercase">
+    <button class="btn" data-save>${t("save")}</button>
+    <button class="btn danger" data-cancel>${t("cancel")}</button>`;
+  const seg = container.querySelector(".seg");
+  const paint = () => seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.g === seg.dataset.gender));
+  seg.querySelectorAll("button").forEach(b => b.onclick = () => { seg.dataset.gender = b.dataset.g; paint(); haptic(); });
+  paint();
+  // Hujjat turi: seriya yozilganda taxmin qilinadi (AD, AE — ID-karta), foydalanuvchi o'zgartirsa — o'shanisi
+  const docSeg = container.querySelector("#doc-seg");
+  let docTouched = !!p.doc_type;
+  const paintDoc = () => docSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.d === docSeg.dataset.doc));
+  docSeg.querySelectorAll("button").forEach(b => b.onclick = () => { docSeg.dataset.doc = b.dataset.d; docTouched = true; paintDoc(); haptic(); });
+  container.querySelector("[name=passport]").oninput = (e) => {
+    if (!docTouched) { docSeg.dataset.doc = guessDocType(e.target.value); paintDoc(); }
+  };
+  paintDoc();
+  container.classList.remove("hidden");
+  container.querySelector("[data-cancel]").onclick = () => { container.classList.add("hidden"); onDone(false); };
+  const save = container.querySelector("[data-save]");
+  save.onclick = () => run(save, async () => {
+    const val = (n) => container.querySelector(`[name=${n}]`).value.trim();
+    const res = await api("/api/passengers", { method: "POST", body: {
+      last_name: val("last_name"), first_name: val("first_name"), middle_name: val("middle_name"),
+      birthday: val("birthday"), passport: val("passport"), gender: seg.dataset.gender, is_self: isSelf,
+      doc_type: docSeg.dataset.doc,
+      replaces: p.passport || null } });
+    state.me.passengers = res.passengers;
+    container.classList.add("hidden");
+    tg?.HapticFeedback?.notificationOccurred("success");
+    toast(t("saved"));
+    onDone(true);
+  });
+  container.querySelector("input").focus();
+}
+
+function passengerDetails(p) {
+  return `<div class="kv"><span>${t("last_name")}</span><span>${esc(p.last_name)}</span></div>
+    <div class="kv"><span>${t("first_name")}</span><span>${esc(p.first_name)}</span></div>
+    <div class="kv"><span>${t("middle_name")}</span><span>${esc(p.middle_name) || "—"}</span></div>
+    <div class="kv"><span>${t("birthday")}</span><span>${fmtDate(p.birthday)}</span></div>
+    <div class="kv"><span>${t("gender")}</span><span>${genderLabel(p.gender)}</span></div>
+    <div class="kv"><span>${t("doc_type")}</span><span>${docLabel(p)} · ${esc(p.passport)}</span></div>`;
+}
+function guessDocType(passport) { return ["AD", "AE"].includes(String(passport || "").trim().slice(0, 2).toUpperCase()) ? "УЛ" : "ПУ"; }
+function docLabel(p) { return t((p.doc_type || guessDocType(p.passport)) === "УЛ" ? "doc_id" : "doc_passport"); }
+
+// ---------- PROFIL ----------
+function renderProfile() {
+  const u = tg?.initDataUnsafe?.user || {};
+  $("tg-name").textContent = [u.first_name, u.last_name].filter(Boolean).join(" ") || t("user");
+  $("tg-phone").textContent = state.me.phone ? "+" + state.me.phone : t("no_phone");
+  $("avatar").innerHTML = u.photo_url ? `<img src="${esc(u.photo_url)}" alt="">` : esc((u.first_name || "?")[0]);
+  const self = state.me.passengers[0];
+  $("self-form").classList.add("hidden");
+  $("self-card").innerHTML = self
+    ? `<div class="card">${passengerDetails(self)}<button class="btn secondary" id="edit-self">${t("edit")}</button></div>`
+    : `<div class="card"><div class="muted">${t("fill_once")}</div>
+       <button class="btn" id="edit-self">${t("enter_data")}</button></div>`;
+  $("edit-self").onclick = () => {
+    $("self-card").innerHTML = "";
+    passengerForm($("self-form"), { isSelf: true, initial: self, onDone: renderProfile });
+  };
+  $("site-block").classList.toggle("hidden", !state.me.is_owner);
+  if (state.me.is_owner) {
+    if (!$("site-phone").value && state.me.phone) $("site-phone").value = "+" + state.me.phone;
+    $("site-status").textContent = t("status", { s: state.me.site_status });
+  }
+}
+$("site-login").onclick = () => run($("site-login"), async () => {
+  const res = await api("/api/site-login", { method: "POST", body: { phone: $("site-phone").value, password: $("site-password").value } });
+  $("site-password").value = "";
+  state.me.site_status = res.site_status; state.me.site_linked = true;
+  renderProfile(); toast(t("logged_in"));
+});
+
+// ---------- HAMROHLAR ----------
+function renderCompanions() {
+  const list = state.me.passengers.slice(1);
+  $("companion-form").classList.add("hidden");
+  $("companions").innerHTML = list.length ? list.map(p => `
+    <div class="card">
+      <div class="row between">
+        <div class="grow"><div class="big">${esc(fullName(p))}</div>
+          <div class="muted">${esc(p.passport)} · ${fmtDate(p.birthday)} · ${genderLabel(p.gender)}</div></div>
+      </div>
+      <div class="row" style="margin-top:10px; gap:8px">
+        <button class="btn small secondary" data-edit="${esc(p.passport)}">${t("edit")}</button>
+        <button class="btn small danger" data-del="${esc(p.passport)}">${t("delete")}</button>
+      </div>
+    </div>`).join("")
+    : `<div class="card empty"><div class="ico">👥</div>${t("companions_empty")}</div>`;
+  $("companions").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
+    const p = list.find(x => x.passport === b.dataset.edit);
+    passengerForm($("companion-form"), { isSelf: false, initial: p, onDone: renderCompanions });
+    $("companion-form").scrollIntoView({ behavior: "smooth" });
+  });
+  $("companions").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    const p = list.find(x => x.passport === b.dataset.del);
+    const go = () => run(b, async () => {
+      const res = await api("/api/passengers/" + encodeURIComponent(p.passport), { method: "DELETE" });
+      state.me.passengers = res.passengers; state.selected.delete(p.passport); renderCompanions();
+    });
+    tg?.showConfirm ? tg.showConfirm(t("confirm_delete", { name: fullName(p) }), ok => ok && go()) : go();
+  });
+}
+$("add-companion").onclick = () => {
+  if (!state.me.passengers.length) { toast(t("err_need_self")); showTab("profile"); return; }
+  passengerForm($("companion-form"), { isSelf: false, onDone: renderCompanions });
+  $("companion-form").scrollIntoView({ behavior: "smooth" });
+};
+
+// ---------- CHIPTALAR ----------
+// Bron to'lov taymeri: har soniyada yangilanadi; muddat tugaganda ro'yxat qayta yuklanadi
+function leftText(expiresAt) {
+  const left = Math.max(0, Math.floor(expiresAt - Date.now() / 1000));
+  return `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`;
+}
+setInterval(() => {
+  let expired = false;
+  document.querySelectorAll("[data-expires]").forEach(el => {
+    el.textContent = leftText(+el.dataset.expires);
+    if (+el.dataset.expires * 1000 <= Date.now()) expired = true;
+  });
+  if (expired && !loadTickets.reloading) {
+    loadTickets.reloading = true;  // bot saytdagi holatni tekshirib bo'lishi uchun biroz kutamiz
+    setTimeout(() => { loadTickets.reloading = false; if (!$("tab-tickets").classList.contains("hidden")) loadTickets(); }, 8000);
+  }
+}, 1000);
+
+async function loadTickets() {
+  $("tickets").innerHTML = `<div class="spinner"></div>`;
+  await run(null, async () => {
+    const { bookings, monitors } = await api("/api/tickets");
+    let html = "";
+    if (bookings.length) {
+      const inactive = bookings.filter(b => ["cancelled", "failed", "expired"].includes(b.status)
+        || (!b.status && b.expires_at && b.expires_at * 1000 <= Date.now())).length;
+      html += `<div class="row between"><h2>${t("booked_h")}</h2>${inactive
+        ? `<span class="chip" id="clear-inactive">🧹 ${t("clear_inactive", { n: inactive })}</span>` : ""}</div>` + bookings.map(b => {
+        // muddati brauzerda tugagan, server hali belgilamagan bo'lsa ham — "tugagan" deb ko'rsatamiz
+        const status = b.status || (b.expires_at && b.expires_at * 1000 <= Date.now() ? "expired" : null);
+        const badge = { cancelled: ["no", "st_cancelled"], failed: ["no", "st_failed"], expired: ["no", "st_expired"], paid: ["ok", "st_paid"] }[status];
+        return `
+        <div class="card" style="${status && status !== "paid" ? "opacity:.6" : ""}">
+          <div class="row between"><div class="big">${esc(b.from_name)} → ${esc(b.to_name)}</div>
+            ${badge ? `<span class="badge ${badge[0]}">${t(badge[1])}</span>` : `<span class="badge info">${esc(b.train_number)}</span>`}</div>
+          ${!status && b.expires_at ? `<div class="row between" style="margin:8px 0; padding:10px 12px; border-radius:10px; background:color-mix(in srgb, var(--warn) 14%, transparent)">
+            <span>⏳ ${t("pay_left")}</span>
+            <span><b class="times" data-expires="${b.expires_at}">${leftText(b.expires_at)}</b>
+              <span class="muted"> · ${t("until", { time: new Date(b.expires_at * 1000).toTimeString().slice(0, 5) })}</span></span></div>` : ""}
+          <div class="muted">${esc(b.brand)}</div>
+          <div class="kv"><span>${t("departure")}</span><span>${esc(b.departure)}</span></div>
+          <div class="kv"><span>${t("arrival")}</span><span>${esc(b.arrival)}</span></div>
+          <div class="kv"><span>${t("car")}</span><span>${esc(b.car_number)} · ${esc(LANG === "ru" ? b.car_type_ru || b.car_type : b.car_type)}</span></div>
+          <div class="kv"><span>${t("seats")}</span><span>${b.seats.join(", ")}</span></div>
+          <div class="kv"><span>${t("passengers")}</span><span>${b.passengers.map(esc).join("<br>")}</span></div>
+          <div class="kv"><span>${t("price")}</span><span>≈ ${money(b.price)}</span></div>
+          <div class="kv"><span>${t("order")}</span><span>${esc(b.order_id)}</span></div>
+          ${status ? "" : `
+          <button class="btn" data-pay="${esc(b.pay_url)}">${t("pay")}</button>
+          <button class="btn danger" data-cancel-order="${esc(b.order_id)}">${t("cancel_booking")}</button>`}
+          ${status && status !== "paid" ? `<button class="btn danger" data-remove-order="${esc(b.order_id)}">🗑 ${t("remove_booking")}</button>` : ""}
+        </div>`; }).join("");
+    }
+    if (monitors.length) {
+      html += `<h2>${t("monitors_h")}</h2>` + monitors.map(m => {
+        const st = m.order_id ? `<span class="badge ok">${t("st_booked")}</span>`
+          : m.active ? `<span class="badge warn">${t("st_watching", { n: m.checks })}</span>` : `<span class="badge no">${t("st_stopped")}</span>`;
+        return `<div class="card">
+          <div class="row between"><div class="big">${esc(m.from_name)} → ${esc(m.to_name)}</div>${st}</div>
+          <div class="muted">${t("train")} ${esc(m.train_number)} · ${esc(m.departure)} · ${t("people", { n: m.passengers })} ·
+            ${t(m.strict ? "strict" : "loose")}</div>
+          <div style="margin-top:4px"><span class="badge info">${esc(LANG === "ru" ? m.categories_ru : m.categories_uz)}</span></div>
+          <button class="btn small danger" style="margin-top:8px" data-mon="${esc(m.id)}">${t("delete")}</button>
+        </div>`;
+      }).join("");
+    }
+    $("tickets").innerHTML = html || `<div class="card empty"><div class="ico">🎟</div>${t("no_tickets")}<br>
+      <button class="btn" style="margin-top:14px" onclick="showTab('buy')">${t("buy_title")}</button></div>`;
+    $("tickets").querySelectorAll("[data-pay]").forEach(b => b.onclick = () => tg?.openLink ? tg.openLink(b.dataset.pay) : open(b.dataset.pay));
+    $("tickets").querySelectorAll("[data-remove-order]").forEach(b => b.onclick = () => run(b, async () => {
+      await api("/api/bookings/" + encodeURIComponent(b.dataset.removeOrder), { method: "DELETE" });
+      haptic(); toast(t("removed_ok")); loadTickets();
+    }));
+    if ($("clear-inactive")) $("clear-inactive").onclick = () => {
+      const go = () => run(null, async () => {
+        const { removed } = await api("/api/bookings/clear-inactive", { method: "POST" });
+        tg?.HapticFeedback?.notificationOccurred("success");
+        toast(t("cleared_ok", { n: removed })); loadTickets();
+      });
+      tg?.showConfirm ? tg.showConfirm(t("confirm_clear"), ok => ok && go()) : go();
+    };
+    $("tickets").querySelectorAll("[data-cancel-order]").forEach(b => b.onclick = () => {
+      const go = () => run(b, async () => {
+        const res = await api("/api/bookings/" + encodeURIComponent(b.dataset.cancelOrder) + "/cancel", { method: "POST" });
+        tg?.HapticFeedback?.notificationOccurred("success");
+        toast(res.notice || t("cancelled_ok")); loadTickets();
+      });
+      tg?.showConfirm ? tg.showConfirm(t("confirm_cancel"), ok => ok && go()) : go();
+    });
+    $("tickets").querySelectorAll("[data-mon]").forEach(b => b.onclick = () => run(b, async () => {
+      await api("/api/monitors/" + b.dataset.mon, { method: "DELETE" }); loadTickets();
+    }));
+  });
+}
+
+// ---------- BILET OLISH ----------
+function stationInput(which) {
+  const input = $(which), box = $(which + "-sug");
+  let timer;
+  input.oninput = () => {
+    state[which] = null; clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { box.classList.add("hidden"); return; }
+    timer = setTimeout(async () => {
+      try {
+        const { stations } = await api("/api/stations?q=" + encodeURIComponent(q));
+        box.innerHTML = stations.map((s, i) => `<div data-i="${i}">${esc(s.name)}</div>`).join("") || `<div class="muted">${t("not_found")}</div>`;
+        box.classList.remove("hidden");
+        box.querySelectorAll("[data-i]").forEach(d => d.onclick = () => setStation(which, stations[d.dataset.i]));
+      } catch (e) { toast(e.message); }
+    }, 300);
+  };
+}
+function setStation(which, station) {
+  state[which] = station; $(which).value = station.name; $(which + "-sug").classList.add("hidden"); haptic();
+  renderPopular();
+}
+function renderPopular() {
+  $("popular").innerHTML = POPULAR.map(([uz, ru, name]) => `<span class="chip" data-name="${name}">${esc(LANG === "ru" ? ru : uz)}</span>`).join("");
+  $("popular").querySelectorAll(".chip").forEach(c => c.onclick = async () => {
+    const which = !state.from ? "from" : "to";
+    try {
+      const { stations } = await api("/api/stations?q=" + encodeURIComponent(c.dataset.name));
+      const s = stations.find(x => x.name === c.dataset.name) || stations[0];
+      if (s) setStation(which, s);
+    } catch (e) { toast(e.message); }
+  });
+}
+$("swap").onclick = () => {
+  [state.from, state.to] = [state.to, state.from];
+  $("from").value = state.from?.name || ""; $("to").value = state.to?.name || ""; haptic();
+};
+function renderDates() {
+  const today = new Date(); $("date").min = isoLocal(today);
+  if (!$("date").value) $("date").value = isoLocal(today);
+  const chips = ["today", "tomorrow", "after_tomorrow"].map((key, i) => {
+    const d = new Date(today); d.setDate(d.getDate() + i); return [isoLocal(d), t(key)]; });
+  $("date-chips").innerHTML = chips.map(([iso, l]) => `<span class="chip ${$("date").value === iso ? "on" : ""}" data-d="${iso}">${l}</span>`).join("");
+  $("date-chips").querySelectorAll(".chip").forEach(c => c.onclick = () => { $("date").value = c.dataset.d; renderDates(); haptic(); });
+}
+$("date").onchange = renderDates;
+
+$("search").onclick = () => run($("search"), async () => {
+  if (!state.from || !state.to) throw new Error(t("err_pick_stations"));
+  if (state.from.code === state.to.code) throw new Error(t("err_same_station"));
+  if (!state.me.passengers.length) { showTab("profile"); throw new Error(t("err_need_self")); }
+  $("trip").classList.add("hidden"); state.train = null;
+  $("trains").innerHTML = `<div class="spinner"></div>`;
+  const q = new URLSearchParams({ date: $("date").value, from_code: state.from.code, to_code: state.to.code });
+  try {
+    state.trains = (await api("/api/trains?" + q)).trains;
+  } catch (e) { $("trains").innerHTML = ""; throw e; }
+  renderTrains();
+});
+
+function renderTrains() {
+  if (!state.trains.length) { $("trains").innerHTML = `<div class="card empty"><div class="ico">🚫</div>${t("no_trains")}</div>`; return; }
+  const shown = state.train ? [state.train] : state.trains;
+  $("trains").innerHTML = (state.train
+    ? `<div class="row between"><h2>${t("selected_train")}</h2><span class="chip" id="other-train">${t("other_train")}</span></div>`
+    : `<h2>${t("n_trains", { date: fmtDate($("date").value), n: state.trains.length })}</h2>`) + shown.map(tr => `
+    <div class="card train ${state.train === tr ? "sel" : ""}" data-i="${state.trains.indexOf(tr)}">
+      <div class="row between">
+        <div class="times">${tr.departureDate.slice(-5)} → ${tr.arrivalDate.slice(-5)}</div>
+        ${tr.free ? `<span class="badge ok">${t("n_seats", { n: tr.free })}</span>` : `<span class="badge no">${t("no_seats")}</span>`}
+      </div>
+      <div class="row between muted" style="margin-top:4px">
+        <span>${esc(tr.number)} · ${esc(tr.brand || "")} · ${t("on_way", { time: esc(tr.timeOnWay || "") })}</span>
+        <span>${tr.min_price ? t("from_price", { price: money(tr.min_price) }) : ""}</span>
+      </div>
+      ${state.train === tr ? catBreakdown(tr.categories || []) : `<div class="chips" style="margin-top:6px">${(tr.categories || []).map(c =>
+        `<span class="badge ${c.free ? "ok" : "no"}">${esc(catName(c))} · ${c.free ? c.free : t("cat_sold")}</span>`).join("")}</div>`}
+      ${tr.free ? "" : `<div class="muted" style="margin-top:6px">${t("sold_out_hint")}</div>`}
+    </div>`).join("");
+  $("trains").querySelectorAll(".train").forEach(c => c.onclick = () => {
+    if (state.train !== state.trains[c.dataset.i]) selectTrain(state.trains[c.dataset.i]);
+  });
+  if (state.train) $("other-train").onclick = () => {
+    state.train = null; $("trip").classList.add("hidden"); renderTrains(); haptic();
+    $("trains").scrollIntoView({ behavior: "smooth" });
+  };
+}
+
+// Tanlangan reys: jami bo'sh joylar va ularning kategoriyalar bo'yicha taqsimoti
+function catBreakdown(cats) {
+  const total = cats.reduce((sum, c) => sum + (c.free || 0), 0);
+  const detail = (c) => {
+    const d = c.detail || {};
+    const parts = [["down", "lower"], ["up", "upper"], ["side_down", "side_lower"], ["side_up", "side_upper"]]
+      .filter(([k]) => d[k] > 0).map(([k, label]) => `${t(label)} ${d[k]}`);
+    return parts.length ? `<div class="muted" style="font-size:12px">${parts.join(" · ")}</div>` : "";
+  };
+  return `<div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--line)">
+    <div class="row between"><b>${t("total_seats", { n: total })}</b></div>
+    ${cats.map(c => `<div class="kv"><span><span style="color:var(--text); font-weight:600">${esc(catName(c))}</span>${detail(c)}</span>
+      <span class="${c.free ? "" : "muted"}" style="white-space:nowrap">${c.free ? t("n_seats", { n: c.free }) : t("cat_sold")}${
+        c.free && c.price ? `<div class="muted" style="font-size:12px; font-weight:400">${money(c.price)}</div>` : ""}</span></div>`).join("")}
+  </div>`;
+}
+
+function tripBody(extra = {}) {
+  return { date: $("date").value, from_code: state.from.code, to_code: state.to.code, from_name: state.from.name,
+    to_name: state.to.name, train: state.train, categories: [...state.categories], passports: [...state.selected], ...extra };
+}
+
+async function selectTrain(train) {
+  haptic(); state.train = train; state.categories = new Set(); state.cars = []; state.carKey = null; state.picked = []; state.tier = "all";
+  state.trainCats = train.categories || [];
+  if (!state.selected.size && state.me.passengers[0]) state.selected.add(state.me.passengers[0].passport);
+  renderTrains(); renderPassengerPick();
+  $("trip").classList.remove("hidden");
+  $("car-types").innerHTML = `<div class="spinner" style="margin:6px auto"></div>`;
+  $("trip-actions").innerHTML = "";
+  $("trip").scrollIntoView({ behavior: "smooth" });
+  await run(null, async () => {
+    // joylar xaritasidan aniq bo'sh joylar soni (joyi tugaganlari ham ro'yxatda — kuzatish uchun)
+    const { categories, cars } = await api("/api/places", { method: "POST", body: tripBody() });
+    state.trainCats = categories; train.categories = categories;  // kartochkada ham aniq sonlar
+    state.cars = cars || []; state.carKey = null; state.picked = [];
+    renderTrains(); renderCarTypes(); renderActions();
+  });
+}
+
+function renderPassengerPick() {
+  const list = state.me.passengers;
+  $("pick-passengers").innerHTML = list.map(p => `
+    <div class="check ${state.selected.has(p.passport) ? "on" : ""}" data-p="${esc(p.passport)}">
+      <div class="box">✓</div><div class="grow">${esc(fullName(p))}<div class="muted">${esc(p.passport)}</div></div>
+    </div>`).join("") + `<div class="check" id="pick-add" style="color:var(--link)">${t("add_new_companion")}</div>`;
+  $("pick-passengers").querySelectorAll("[data-p]").forEach(c => c.onclick = () => {
+    const id = c.dataset.p; state.selected.has(id) ? state.selected.delete(id) : state.selected.add(id);
+    state.picked = state.picked.slice(0, state.selected.size);
+    // joy hali tanlanmagan va vagonda yo'lovchilarga joy yetmasa — mos vagonni qaytadan tanlaymiz
+    const car = currentCar();
+    if (car && !state.picked.length && car.free.length < state.selected.size) state.carKey = null;
+    haptic(); renderPassengerPick(); renderActions();
+  });
+  $("pick-add").onclick = () => { showTab("companions"); $("add-companion").click(); };
+}
+
+function renderCarTypes() {
+  // Kategoriyalar: bir nechtasini belgilash mumkin; hech biri belgilanmasa — istalgani
+  const cats = state.trainCats || [];
+  $("car-block").classList.toggle("hidden", !cats.length);
+  $("car-types").innerHTML = [`<span class="chip ${state.categories.size ? "" : "on"}" data-c="*">${t("all_categories")}</span>`]
+    .concat(cats.map(c => `<span class="chip ${state.categories.has(c.code) ? "on" : ""}" data-c="${esc(c.code)}">${
+      state.categories.has(c.code) ? "✓ " : ""}${esc(catName(c))} · ${c.free ? c.free + (c.price ? " · " + money(c.price) : "") : t("cat_sold")}</span>`)).join("");
+  $("car-types").querySelectorAll(".chip").forEach(chip => chip.onclick = () => {
+    const code = chip.dataset.c;
+    if (code === "*") state.categories.clear();
+    else state.categories.has(code) ? state.categories.delete(code) : state.categories.add(code);
+    haptic(); renderCarTypes(); renderActions();
+  });
+}
+
+function renderActions() {
+  const n = state.selected.size, box = $("trip-actions");
+  const cats = (state.trainCats || []).filter(c => !state.categories.size || state.categories.has(c.code));
+  const hasSeats = cats.some(c => c.free > 0);
+  const monitorButtons = `<button class="btn" data-mon="1">${t("mon_strict")}</button>
+      <button class="btn secondary" data-mon="0">${t("mon_loose")}</button>`;
+  if (!n) { box.innerHTML = `<div class="card muted">${t("pick_one")}</div>`; return; }
+  if (!hasSeats) {
+    const anyFree = (state.trainCats || []).some(c => c.free > 0);
+    box.innerHTML = state.categories.size && anyFree
+      ? `<div class="card"><div class="big">${t("no_free_cat_title")}</div>
+         <div class="muted">${t("no_free_cat_text", { n, cats: catNames([...state.categories]) })}</div>${monitorButtons}</div>`
+      : `<div class="card"><div class="big">${t("no_free_title")}</div>
+         <div class="muted">${t("no_free_text", { n })}</div>${monitorButtons}</div>`;
+  } else {
+    renderCarPicker(box, n);
+    return;
+  }
+  box.querySelectorAll("[data-mon]").forEach(b => b.onclick = () => run(b, async () => {
+    const { every_seconds } = await api("/api/monitor", { method: "POST", body: tripBody({ strict: b.dataset.mon === "1" }) });
+    tg?.HapticFeedback?.notificationOccurred("success");
+    alertThen(t("monitor_alert", { s: every_seconds }), () => showTab("tickets"));
+  }));
+}
+
+// ---------- vagon va joy tanlash (saytdagi vagon sxemasi) ----------
+const SCHEMES = {};  // fayl -> SVG matni
+function visibleCars() {
+  return (state.cars || []).filter(c => !state.categories.size || state.categories.has(c.category));
+}
+function currentCar() { return visibleCars().find(c => c.key === state.carKey); }
+// Saytdagidek "Faqat tepasi / pastki": juft raqam — tepa, toq — pastki o'rin (yotoqli vagonlarda)
+function carTier(car) { return car.tiers ? state.tier || "all" : "all"; }
+function freeSeats(car, tier = carTier(car)) {
+  return tier === "upper" ? car.free.filter(s => s % 2 === 0) : tier === "lower" ? car.free.filter(s => s % 2) : car.free;
+}
+
+function renderCarPicker(box, n) {
+  const cars = visibleCars();
+  if (!cars.length) { box.innerHTML = `<div class="card muted">${t("no_cars")}</div>`; return; }
+  // yo'lovchilar soniga yetadigan birinchi vagondan boshlaymiz
+  if (!currentCar()) { state.carKey = (cars.find(c => c.free.length >= n) || cars[0]).key; state.picked = []; }
+  const car = currentCar();
+  box.innerHTML = `<h2>${t("pick_car")}</h2>
+    <div class="card">
+      <div class="cars">${cars.map(c => `<button type="button" class="car-tab ${c.key === car.key ? "on" : ""}" data-key="${esc(c.key)}">
+        <b>${t("car_n", { n: esc(c.number) })}</b><span>${esc(LANG === "ru" ? c.name_ru : c.name_uz)}</span>
+        <span>${t("n_seats", { n: c.free.length })}${c.price ? " · " + money(c.price) : ""}</span></button>`).join("")}</div>
+      ${car.tiers ? `<div class="seg" id="tiers" style="margin-top:6px">${["all", "upper", "lower"].map(k =>
+        `<button type="button" data-tier="${k}" class="${carTier(car) === k ? "on" : ""}" style="font-size:14px; padding:7px 4px">${
+          t("tier_" + k)}<div class="muted" style="font-size:12px; font-weight:400">${t("n_seats", { n: freeSeats(car, k).length })}</div></button>`).join("")}</div>` : ""}
+      <div class="row between" style="margin-top:10px"><b>${t("pick_seats", { n })}</b>
+        <span class="badge ${state.picked.length === n ? "ok" : "info"}" id="picked-count">${t("picked_n", { k: state.picked.length, n })}</span></div>
+      <div id="scheme"><div class="spinner"></div></div>
+      <div class="legend"><span><i style="background:#187cee"></i>${t("leg_free")}</span>
+        <span><i style="background:#e4e4e4"></i>${t("leg_busy")}</span><span><i style="background:#5cb85c"></i>${t("leg_picked")}</span></div>
+      <div class="seats" id="picked-seats"></div>
+      <div class="kv"><span>${t("total")}</span><span id="total-price"></span></div>
+      <button class="btn" id="book">${t("book")}</button>
+    </div>`;
+  box.querySelectorAll(".car-tab").forEach(b => b.onclick = () => {
+    if (b.dataset.key === state.carKey) return;
+    state.carKey = b.dataset.key; state.picked = []; haptic(); renderActions();
+  });
+  box.querySelectorAll("[data-tier]").forEach(b => b.onclick = () => {
+    if (b.dataset.tier === carTier(car)) return;
+    state.tier = b.dataset.tier; state.picked = []; haptic(); renderActions();  // saytdagidek: tanlov tozalanadi
+  });
+  $("book").onclick = () => run($("book"), async () => {
+    if (state.picked.length !== n) throw new Error(t("pick_all_first", { k: state.picked.length, n }));
+    try {
+      const { booking } = await api("/api/book", { method: "POST", body: tripBody({ car_key: car.key, seats: state.picked, tier: carTier(car) }) });
+      tg?.HapticFeedback?.notificationOccurred("success");
+      alertThen(t("booked_alert", { car: booking.car_number, seats: booking.seats.join(", ") }), () => showTab("tickets"));
+    } catch (e) {
+      if (e.status === 409) await reloadPlaces();  // joy band bo'lib qolgan — sxemani yangilaymiz
+      throw e;
+    }
+  });
+  drawScheme(car, n);
+}
+
+async function reloadPlaces() {
+  const { categories, cars } = await api("/api/places", { method: "POST", body: tripBody() });
+  state.trainCats = categories; state.train.categories = categories; state.cars = cars || [];
+  const car = currentCar();
+  state.picked = car ? state.picked.filter(s => car.free.includes(s)) : [];
+  renderCarTypes(); renderActions();
+}
+
+function updatePicked(car, n) {
+  $("picked-count").textContent = t("picked_n", { k: state.picked.length, n });
+  $("picked-count").className = "badge " + (state.picked.length === n ? "ok" : "info");
+  $("picked-seats").innerHTML = [...state.picked].sort((a, b) => a - b).map(s => `<div class="seat picked">${s}</div>`).join("");
+  $("total-price").textContent = car.price ? "≈ " + money(car.price * n) : "—";
+  $("book").disabled = state.picked.length !== n;
+}
+
+function togglePick(seat, car, n) {
+  const i = state.picked.indexOf(seat);
+  if (i >= 0) state.picked.splice(i, 1);
+  else if (n === 1) state.picked = [seat];
+  else if (state.picked.length >= n) { toast(t("too_many", { n })); return false; }
+  else state.picked.push(seat);
+  haptic(); updatePicked(car, n); return true;
+}
+
+// data-f / data-b: saytdagi bo'sh / band holat ranglari ("fill:rgb(...);stroke:...")
+function applyStyle(el, spec) {
+  for (const part of (spec || "").split(";")) {
+    const k = part.indexOf(":"); if (k > 0) el.style.setProperty(part.slice(0, k), part.slice(k + 1));
+  }
+}
+const WHITE = /^(#fff(fff)?|white|rgb\(255, 255, 255\))$/i;
+function paintSeat(g, status) {
+  g.classList.remove("free", "busy", "picked"); g.classList.add(status);
+  g.querySelectorAll("[data-f]").forEach(el => {
+    applyStyle(el, status === "busy" ? el.dataset.b : el.dataset.f);
+    if (status !== "picked") return;
+    for (const prop of ["fill", "stroke"]) {  // tanlangan joy — saytdagidek yashil
+      const m = el.dataset.f.match(new RegExp("(^|;)" + prop + ":([^;]+)"));
+      if (m && m[2] !== "none" && !WHITE.test(m[2].trim())) el.style.setProperty(prop, "#5cb85c");
+    }
+  });
+}
+
+async function drawScheme(car, n) {
+  const holder = $("scheme");
+  updatePicked(car, n);
+  const free = new Set(freeSeats(car));  // filtrga tushmagan joylar saytdagidek band ko'rinadi
+  if (!car.schema) {  // sxemasi noma'lum vagon — raqamlar to'ri
+    const total = Math.max(car.seats_count || 0, ...car.free);
+    holder.innerHTML = `<div class="muted" style="margin-top:10px">${t("no_scheme")}</div><div class="seat-grid">${
+      Array.from({ length: total }, (_, i) => i + 1).map(s => `<button type="button" data-s="${s}" class="${
+        state.picked.includes(s) ? "picked" : free.has(s) ? "free" : "busy"}" ${free.has(s) ? "" : "disabled"}>${s}</button>`).join("")}</div>`;
+    holder.querySelectorAll("button.free, button.picked").forEach(b => b.onclick = () => {
+      if (togglePick(+b.dataset.s, car, n)) holder.querySelectorAll("[data-s]").forEach(x => {
+        const s = +x.dataset.s; if (free.has(s)) x.className = state.picked.includes(s) ? "picked" : "free"; });
+    });
+    return;
+  }
+  try {
+    if (!SCHEMES[car.schema]) {
+      const res = await fetch("/schemas/" + encodeURIComponent(car.schema));
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      SCHEMES[car.schema] = await res.text();
+    }
+  } catch (e) { holder.innerHTML = `<div class="muted">${esc(e.message)}</div>`; return; }
+  if (state.carKey !== car.key) return;  // shu orada boshqa vagon tanlangan
+  holder.innerHTML = `<div class="scheme">${SCHEMES[car.schema]}</div>`;
+  const svg = holder.querySelector("svg");
+  const seats = new Map();
+  svg.querySelectorAll("g[id]").forEach(g => {
+    if (!/^\d+$/.test(g.id) || g.parentElement.closest("g[data-seat]")) return;
+    const s = +g.id; g.dataset.seat = s; seats.set(s, g);
+    paintSeat(g, state.picked.includes(s) ? "picked" : free.has(s) ? "free" : "busy");
+  });
+  svg.addEventListener("click", ev => {
+    // joy raqami ba'zi sxemalarda joy guruhidan tashqarida chizilgan — bosilgan nuqtadagi joyni qidiramiz
+    const g = ev.target.closest("[data-seat]") ||
+      document.elementsFromPoint(ev.clientX, ev.clientY).map(el => el.closest?.("[data-seat]")).find(Boolean);
+    if (!g) return;
+    const s = +g.dataset.seat;
+    if (!free.has(s)) return;
+    if (togglePick(s, car, n)) seats.forEach((el, num) => {
+      if (free.has(num)) paintSeat(el, state.picked.includes(num) ? "picked" : "free"); });
+  });
+  // birinchi bo'sh joy ko'rinadigan joyga suramiz
+  const first = seats.get([...free][0]);
+  if (first) { const box = holder.querySelector(".scheme"), r = first.getBoundingClientRect(), b = box.getBoundingClientRect();
+    box.scrollLeft += r.left - b.left - b.width / 2; }
+}
+
+// ---------- ishga tushirish ----------
+(async function init() {
+  LANG = await loadLang();
+  applyStatic();
+  if (!tg?.initData) {
+    document.querySelector("main").innerHTML = `<div class="card empty" style="margin-top:40px"><div class="ico">🤖</div>${t("open_in_tg")}</div>`;
+    return;
+  }
+  stationInput("from"); stationInput("to"); renderPopular(); renderDates();
+  try {
+    state.me = await api("/api/me");
+  } catch (e) {
+    document.querySelector("main").innerHTML = `<div class="card empty" style="margin-top:40px"><div class="ico">⚠️</div>${esc(e.message)}</div>`;
+    return;
+  }
+  if (!state.me.passengers.length) { showTab("profile"); toast(t("fill_first")); }
+})();
+</script>
+</body>
+</html>
