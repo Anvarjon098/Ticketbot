@@ -88,6 +88,13 @@ band qilinadi (12 daqiqa), lekin to'lovni bot egasi qiladi:
 
 Egasining o'z bronlari oldingidek (to'lov havolasi va bekor qilish tugmasi bilan).
 
+## "💳 Saytda to'lash" — qayta login qilmasdan
+Sayt login tokenini faqat `sessionStorage` da saqlaydi, shuning uchun oddiy havola har safar login so'raydi.
+Bot egasining bron xabarlarida (va ilovadagi "Saytda to'lash" tugmasida) havola sayt bot egasining
+akkaunti bilan ochiladi: sayt ilova manzili orqali (proksi, `site_proxy.py`) ochiladi va bot tokeni avtomatik
+qo'yiladi. To'lov saytning o'z sahifasida (karta + SMS kod) qilinadi. Havola imzolangan, bron muddati
+(+15 daqiqa) davomida amal qiladi va faqat bot egasiga yuboriladi — uni boshqalarga bermang.
+
 ## Bronni bekor qilish
 To'lanmagan bronni bekor qilish mumkin (joylar saytda bo'shatiladi):
 - botda — bron haqidagi xabar ostidagi **❌ Bronni bekor qilish** tugmasi yoki **🎟 Chiptalarim** menyusi;

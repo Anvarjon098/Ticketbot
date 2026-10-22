@@ -17,6 +17,7 @@ from aiohttp import web
 
 import booking
 import car_schemas
+import site_proxy
 from monitor import Monitor, MonitorManager
 from passengers import validate_fields
 from categories import ORDER as CATEGORY_CODES
@@ -43,6 +44,8 @@ class AppContext:
     poll_interval: float
     client_ru: UzRailClient | None = None  # reyslar ro'yxatini ruscha nomlar bilan olish uchun
     timers: object | None = None  # timers.BookingTimers — bot xabaridagi to'lov taymeri
+    proxy: site_proxy.SiteProxy | None = None  # saytni bot egasining akkaunti bilan ochish
+    public_url: str | None = None  # ilovaning tashqi manzili (main() da aniqlanadi)
 
 
 CTX = web.AppKey("ctx", AppContext)
@@ -107,8 +110,8 @@ def _error(message: str, status: int) -> web.Response:
 
 @web.middleware
 async def api_middleware(request: web.Request, handler):
-    if not request.path.startswith("/api/"):
-        return await handler(request)
+    if not request.path.startswith("/api/") or site_proxy.is_site_path(request.path):
+        return await handler(request)  # sahifa yoki saytning API'si (proksi o'zi tekshiradi)
     ctx = request.app[CTX]
     try:
         init = safe_parse_webapp_init_data(ctx.bot.token, request.headers.get("X-Telegram-Init-Data", ""))
@@ -236,7 +239,11 @@ async def tickets(request: web.Request):
     ctx, uid = request.app[CTX], request["user_id"]
     own = [m for m in ctx.monitors.monitors.values() if m.chat_id == uid]
     own.sort(key=lambda m: m.created, reverse=True)
-    return web.json_response({"bookings": ctx.users.bookings(uid), "monitors": [monitor_info(m) for m in own]})
+    bookings = ctx.users.bookings(uid)
+    if uid == ctx.owner_id and ctx.proxy and ctx.public_url:  # bot egasi saytga qayta login qilmasdan to'laydi
+        bookings = [{**b, "pay_url": site_proxy.pay_link(ctx.public_url, ctx.bot.token, b["order_id"],
+                                                         b.get("expires_at"))} for b in bookings]
+    return web.json_response({"bookings": bookings, "monitors": [monitor_info(m) for m in own]})
 
 
 async def delete_monitor(request: web.Request):
@@ -429,6 +436,9 @@ def create_app(ctx: AppContext) -> web.Application:
     app.router.add_post("/api/monitor", start_monitor)
     app.router.add_post("/api/site-login", site_login)
     app.router.add_static("/schemas", car_schemas.SCHEMA_DIR)  # vagon sxemalari (saytdan olingan SVG)
+    if ctx.proxy:  # qolgan barcha manzillar — sayt (faqat imzoli havola orqali kirilganda)
+        app.router.add_get("/sitepay/{order_id}", ctx.proxy.start_page)
+        app.router.add_route("*", "/{tail:.*}", ctx.proxy.handle)
     return app
 
 

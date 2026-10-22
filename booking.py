@@ -140,8 +140,11 @@ def booking_record(order_id: str, train: dict, choice: SeatChoice, passengers: l
     }
 
 
-def booking_text(b: dict, with_pay: bool = True) -> str:
-    """Bron tafsilotlari; with_pay=False — to'lov havolasisiz (to'lovni bot egasi qiladigan foydalanuvchi uchun)."""
+def booking_text(b: dict, with_pay: bool = True, pay_button: bool = False) -> str:
+    """Bron tafsilotlari; with_pay=False — to'lov havolasisiz (to'lovni bot egasi qiladigan foydalanuvchi uchun).
+
+    pay_button=True — havola o'rniga xabar ostidagi "Saytda to'lash" tugmasi (bot egasining akkaunti bilan).
+    """
     text = (
         f"Poyezd {b['train_number']} {b['brand']}, {b['from_name']} → {b['to_name']}\n"
         f"Jo'nash: {b['departure']}\n"
@@ -151,9 +154,18 @@ def booking_text(b: dict, with_pay: bool = True) -> str:
     )
     if not with_pay:
         return text
+    if pay_button:
+        return (text + "\n\n⏳ Bron vaqtinchalik — pastdagi «💳 Saytda to'lash» tugmasi bilan tezda to'lang "
+                       "(sayt akkauntingiz bilan ochiladi).")
     return (text + "\n\n⏳ Bron vaqtinchalik — to'lovni saytda tezda amalga oshiring:\n"
             f"{b['pay_url']}\n"
             f"yoki {BASE_URL}/uz/cabinet/orders")
+
+
+def with_pay_button(markup: InlineKeyboardMarkup, url: str) -> InlineKeyboardMarkup:
+    """Tugmalar ustiga "Saytda to'lash" (sayt akkaunti bilan ochiladigan havola) qo'shadi."""
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💳 Saytda to'lash", url=url)],
+                                                 *markup.inline_keyboard])
 
 
 def approval_markup(order_id: str) -> InlineKeyboardMarkup:

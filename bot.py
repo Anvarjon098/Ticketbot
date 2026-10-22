@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 
 import booking
 import car_schemas
+import site_proxy
 import webapp
 from access import AccessStore
 from car_render import CarRenderer
@@ -1292,7 +1293,8 @@ async def main():
     client_ru = UzRailClient(lang="ru")
     ctx = webapp.AppContext(bot=bot, client=client, session=session, users=users, monitors=monitors,
                             owner_id=OWNER_ID, allowed_ids=ALLOWED_IDS, poll_interval=POLL_INTERVAL,
-                            client_ru=client_ru, timers=timers)
+                            client_ru=client_ru, timers=timers,
+                            proxy=site_proxy.SiteProxy(bot.token, session))
     runner = await webapp.start_server(ctx, WEBAPP_PORT)
     tunnel = None
     try:
@@ -1301,6 +1303,7 @@ async def main():
             tunnel, WEBAPP_URL = await webapp.start_tunnel(WEBAPP_PORT)
         menu = MenuButtonWebApp(text="Ilova", web_app=WebAppInfo(url=WEBAPP_URL))
         await bot.set_chat_menu_button(menu_button=menu)
+        ctx.public_url = timers.pay_base = WEBAPP_URL  # "Saytda to'lash" — sayt bot egasining akkaunti bilan ochiladi
         # Umumiy tugma Telegram'da kechikib yangilanadi — ma'lum foydalanuvchilarga darhol alohida o'rnatamiz
         for chat_id in ALLOWED_IDS | set(users.ids()):
             try:
@@ -1317,6 +1320,7 @@ async def main():
         if tunnel:
             tunnel.terminate()
         await runner.cleanup()
+        await ctx.proxy.close()
         await renderer.close()
         await client.close()
         await client_ru.close()

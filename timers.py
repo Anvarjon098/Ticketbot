@@ -17,6 +17,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 
 import booking
+import site_proxy
 from site_auth import SiteSession
 from users import UserStore
 from uzrail import UzRailClient, UzRailError
@@ -46,6 +47,7 @@ class BookingTimers:
     def __init__(self, bot: Bot, users: UserStore, client: UzRailClient, session: SiteSession, owner_id: int):
         self.bot, self.users, self.client, self.session, self.owner_id = bot, users, client, session, owner_id
         self._tasks: dict[str, asyncio.Task] = {}
+        self.pay_base: str | None = None  # ilova manzili — bot egasining "Saytda to'lash" tugmasi uchun (main() da)
 
     # ---------- xabar ko'rinishi ----------
 
@@ -64,13 +66,21 @@ class BookingTimers:
             tail = f"\n\n⏳ Bron saqlanadi: {left}" if left else ""
             return f"{head}\n{booking.booking_text(record, with_pay=False)}{tail}", None
         tail = f"\n\n⏳ To'lov uchun qoldi: {left}" if left else ""
+        # bot egasiga: saytni uning akkaunti bilan ochadigan tugma (ilova manzili bo'lsa), aks holda oddiy havola
+        pay_url = (site_proxy.pay_link(self.pay_base, self.bot.token, record["order_id"], record.get("expires_at"))
+                   if self.pay_base and chat_id == self.owner_id else None)
+        text = booking.booking_text(record, pay_button=bool(pay_url))
+
+        def markup(base):
+            return booking.with_pay_button(base, pay_url) if pay_url else base
+
         if approval == "pending":
             head = f"🔔 TASDIQLASH KERAK — {record.get('by') or 'foydalanuvchi'} bron qildi.\nTasdiqlab, saytda to'lang:"
-            return f"{head}\n{booking.booking_text(record)}{tail}", booking.approval_markup(record["order_id"])
+            return f"{head}\n{text}{tail}", markup(booking.approval_markup(record["order_id"]))
         if approval == "approved":
             head = f"✅ Tasdiqlangan ({record.get('by') or 'foydalanuvchi'}) — saytda to'lang:"
-            return f"{head}\n{booking.booking_text(record)}{tail}", booking.cancel_markup(record["order_id"])
-        return f"{headline}\n{booking.booking_text(record)}{tail}", booking.cancel_markup(record["order_id"])
+            return f"{head}\n{text}{tail}", markup(booking.cancel_markup(record["order_id"]))
+        return f"{headline}\n{text}{tail}", markup(booking.cancel_markup(record["order_id"]))
 
     def final_text(self, record: dict, chat_id: int) -> str | None:
         """Yakunlangan bron xabari (bekor qilingan / to'langan / muddati tugagan) yoki None."""
