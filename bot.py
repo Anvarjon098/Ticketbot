@@ -1294,7 +1294,7 @@ async def main():
     ctx = webapp.AppContext(bot=bot, client=client, session=session, users=users, monitors=monitors,
                             owner_id=OWNER_ID, allowed_ids=ALLOWED_IDS, poll_interval=POLL_INTERVAL,
                             client_ru=client_ru, timers=timers,
-                            proxy=site_proxy.SiteProxy(bot.token, session))
+                            proxy=site_proxy.SiteProxy(bot.token, session, client))
     runner = await webapp.start_server(ctx, WEBAPP_PORT)
     tunnel = None
     try:

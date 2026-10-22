@@ -3,9 +3,16 @@
 Sayt login tokenini faqat sessionStorage da saqlaydi — har bir yangi tabda u bo'sh, shuning uchun
 oddiy havola har safar login so'raydi. Boshqa domendan saytning sessionStorage iga yozib bo'lmaydi,
 shu sababli sayt ilova manzili orqali ochiladi (proksi): /sitepay/... sahifasi bot tokenini
-sessionStorage ga yozadi va bron sahifasiga o'tadi, keyingi barcha so'rovlar (sahifa, API, websocket)
-eticket.uzrailpass.uz ga uzatiladi. Saytning API va websocket manzillari nisbiy (host: "", wsurl: "/ws"),
-shuning uchun sayt kodi o'zgartirilmasdan ishlaydi.
+sessionStorage ga yozadi va to'lov sahifasiga o'tadi, keyingi barcha so'rovlar (sahifa, API, websocket)
+eticket.uzrailpass.uz ga uzatiladi.
+
+Saytning to'lov sahifasi (/pages/payment) buyurtmani API dan olmaydi: sayt ichida bron qilinganda websocket
+xabaridan sessionStorage ga "paymentId" va "paymentTypesSnapshot" ({orderId, confirmData}) yozib qo'yiladi.
+Bot bronni saytdan tashqarida qilgani uchun ularni buyurtma holatidan (get-snapshot) o'zimiz yozamiz —
+aks holda sahifa bo'sh qoladi. (/pages/current-order esa to'lovdan keyingi chipta sahifasi.)
+
+Saytning API va websocket manzillari nisbiy (host: "", wsurl: "/ws"), shuning uchun sayt kodi
+o'zgartirilmasdan ishlaydi.
 
 Havola imzolangan va muddatli (faqat bot egasiga yuboriladi); proksi faqat shu havola orqali
 o'rnatilgan cookie bilan ishlaydi — begona odam proksidan foydalana olmaydi.
@@ -21,11 +28,13 @@ import aiohttp
 from aiohttp import web
 
 from site_auth import SiteSession
-from uzrail import BASE_URL, UzRailError, decode_jwt
+from uzrail import BASE_URL, UzRailClient, UzRailError, decode_jwt
 
 COOKIE = "uzbot_sp"
 COOKIE_TTL = 3 * 3600  # sekund: proksi cookie si shuncha amal qiladi
 LINK_GRACE = 15 * 60  # sekund: havola bron muddatidan keyin ham shuncha amal qiladi
+CLOSED = {"CANCELLED": "Bron bekor qilingan yoki to'lov muddati tugagan — to'lab bo'lmaydi.",
+          "FAILED": "Bron saytda amalga oshmagan — to'lab bo'lmaydi."}
 # Brauzerdan saytga uzatilmaydigan sarlavhalar
 SKIP_REQUEST = {"host", "origin", "referer", "cookie", "content-length", "connection", "accept-encoding",
                 "upgrade", "sec-websocket-key", "sec-websocket-version", "sec-websocket-extensions"}
@@ -60,8 +69,8 @@ def is_site_path(path: str) -> bool:
 
 
 class SiteProxy:
-    def __init__(self, secret: str, session: SiteSession):
-        self.secret, self.session = secret, session
+    def __init__(self, secret: str, session: SiteSession, client: UzRailClient):
+        self.secret, self.session, self.client = secret, session, client
         self._http: aiohttp.ClientSession | None = None
 
     def http(self) -> aiohttp.ClientSession:
@@ -76,7 +85,7 @@ class SiteProxy:
             await self._http.close()
 
     async def start_page(self, request: web.Request) -> web.Response:
-        """Imzoli havola: tokenni sessionStorage ga yozib, bron sahifasini ochadi."""
+        """Imzoli havola: token va buyurtmani sessionStorage ga yozib, to'lov sahifasini ochadi."""
         order_id = request.match_info["order_id"]
         exp = request.query.get("e", "")
         sig = request.query.get("s", "")
@@ -85,13 +94,18 @@ class SiteProxy:
             return web.Response(text="Havola eskirgan — botdagi bron xabaridan qayta oching.", status=403)
         try:
             token = await self.session.get_token()
+            order = await self.client.order_snapshot(token, order_id)
         except UzRailError as e:
             return web.Response(text=str(e), status=503)
+        if order.get("lifecycle") in CLOSED:
+            return web.Response(text=CLOSED[order["lifecycle"]], status=410)
         claims = decode_jwt(token)
         storage = {"token": token, "userId": str(claims.get("id", "")), "username": claims.get("sub", ""),
-                   "orderId": order_id}
+                   "orderId": order_id, "paymentId": order.get("paymentId") or f"{order_id}_PAYMENT",
+                   "paymentTypesSnapshot": json.dumps({"orderId": order_id, "confirmData": order})}
         script = "".join(f"sessionStorage.setItem({json.dumps(k)},{json.dumps(v)});" for k, v in storage.items())
-        target = json.dumps(f"/uz/pages/current-order/{order_id}")
+        script = script.replace("</", "<\\/")  # buyurtma matnidagi "</script>" sahifani buzmasin
+        target = json.dumps("/uz/pages/payment")
         html = (f"<!doctype html><meta charset=utf-8><title>To'lov</title>"
                 f"<script>{script}location.replace({target});</script>")
         resp = web.Response(text=html, content_type="text/html",
