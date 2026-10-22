@@ -221,6 +221,10 @@ class BookingTimers:
                         self.users.set_status(uid, order_id, "paid")
                         await self.finalize(order_id)
                         return
+                    if lifecycle in ("CANCELLED", "FAILED"):  # saytning o'zida bekor qilingan
+                        self.users.set_status(uid, order_id, "cancelled" if lifecycle == "CANCELLED" else "failed")
+                        await self.finalize(order_id)
+                        return
                 await self.refresh(order_id)
                 await asyncio.sleep(min(TICK, left))
             await self._finish(order_id)

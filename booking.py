@@ -72,7 +72,8 @@ async def reserve(client: UzRailClient, session: SiteSession, train: dict,
 async def cancel(client: UzRailClient, session: SiteSession, order_id: str) -> None:
     """Bronni bekor qiladi; sayt tokeni eskirgan bo'lsa qayta kirib, yana bir marta urinadi.
 
-    Sayt rad etsa va buyurtma umuman amalga oshmagan bo'lsa (FAILED) — OrderNotActive.
+    Sayt rad etsa va buyurtma umuman amalga oshmagan bo'lsa (FAILED) — OrderNotActive; saytda allaqachon
+    bekor qilingan bo'lsa (CANCELLED, masalan saytning o'zida) — xato emas, bekor qilingan deb hisoblanadi.
     """
     token = await _token(session)
     try:
@@ -86,6 +87,8 @@ async def cancel(client: UzRailClient, session: SiteSession, order_id: str) -> N
             lifecycle = (await client.order_snapshot(token, order_id)).get("lifecycle")
         except UzRailError:
             lifecycle = None
+        if lifecycle == "CANCELLED":
+            return
         if lifecycle == "FAILED":
             raise OrderNotActive("Bu bron saytda amalga oshmagan edi — bekor qilish shart emas, joy band qilinmagan.",
                                  "Эта бронь на сайте не была оформлена — отменять нечего, места не заняты.")
