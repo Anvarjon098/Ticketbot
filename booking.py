@@ -5,7 +5,7 @@ import time
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from categories import group_code, name as category_name
-from order_events import OrderEvents, message_text
+from order_events import OrderEvents, is_sales_closed, message_text
 from seats import SeatChoice, choose_seats
 from site_auth import SiteSession
 from uzrail import BASE_URL, AuthError, Passenger, UzRailClient, UzRailError, decode_jwt
@@ -23,6 +23,10 @@ async def find_seats(client: UzRailClient, trip_date: str, from_code: str, to_co
 
 class ReservationFailed(UzRailError):
     """Sayt buyurtmani qabul qildi, lekin bron amalga oshmadi (sabab — sayt xabarida)."""
+
+
+class SalesClosed(ReservationFailed):
+    """Poyezd jo'nashiga oz qolgan — sayt bu reysga bron qilmaydi (qayta urinish foydasiz)."""
 
 
 class OrderNotActive(UzRailError):
@@ -52,7 +56,8 @@ async def reserve(client: UzRailClient, session: SiteSession, train: dict,
         event = await events.wait(order_id, timeout)
     if event is not None and event.get("status") != "Success":
         log.warning("Bron amalga oshmadi %s: %s", order_id, event)
-        raise ReservationFailed(f"Bron amalga oshmadi: {message_text(event, 'uz')}",
+        error = SalesClosed if is_sales_closed(event) else ReservationFailed
+        raise error(f"Bron amalga oshmadi: {message_text(event, 'uz')}",
                                 f"Бронь не оформлена: {message_text(event, 'ru')}")
     # Muvaffaqiyat xabari kelgan bo'lsa ham (yoki kanaldan javob kelmasa) — buyurtma holatini saytdan tekshiramiz
     snapshot = await client.order_snapshot(token, order_id)

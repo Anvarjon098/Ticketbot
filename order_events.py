@@ -27,6 +27,12 @@ EXPRESS_HINTS = {
     "US97": ("yo'lovchi ma'lumoti sotuv tizimiga noto'g'ri formatda yetdi (ism-familiyadagi belgilar)",
              "данные пассажира дошли до системы продажи в неверном формате (символы в ФИО)"),
 }
+# Kodsiz Express xatolari: matndagi ibora -> (o'zbekcha, ruscha)
+SALES_CLOSED = "ВЫПОЛНЯТЬ ПОЗДНО"  # poyezd jo'nashiga oz qolgan — bu reysga sotuv yopilgan
+TEXT_HINTS = {
+    SALES_CLOSED: ("bu reysga sotuv yopilgan — poyezd jo'nashiga juda kam vaqt qoldi. Keyingi reysni tanlang",
+                   "продажа на этот рейс закрыта — до отправления поезда осталось слишком мало времени. Выберите другой рейс"),
+}
 _LATIN_TO_CYR = str.maketrans("ABCEHKMOPTXY", "АВСЕНКМОРТХУ")
 
 
@@ -44,7 +50,16 @@ def message_text(event: dict, lang: str = "uz") -> str:
     if code and code.group(1) in EXPRESS_HINTS:
         hint = EXPRESS_HINTS[code.group(1)][1 if lang == "ru" else 0]
         text = f"{hint} ({text})"
+    for phrase, hints in TEXT_HINTS.items():
+        if phrase in text.upper():
+            text = f"{hints[1 if lang == 'ru' else 0]} ({text})"
     return text
+
+
+def is_sales_closed(event: dict) -> bool:
+    msg = event.get("message") or {}
+    texts = msg.values() if isinstance(msg, dict) else [msg]
+    return any(SALES_CLOSED in message_text({"message": t}).upper() for t in texts if t)
 
 
 class OrderEvents:

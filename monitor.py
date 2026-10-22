@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from booking import booking_record, booking_text, payment_deadline, reserve
+from booking import SalesClosed, booking_record, booking_text, payment_deadline, reserve
 from categories import describe
 from seats import SeatChoice, choose_seats
 from site_auth import SiteSession
@@ -179,6 +179,11 @@ class MonitorManager:
             order_id = await reserve(self.client, self.session, m.train, choice, m.passengers)
         except RateLimitError:
             raise
+        except SalesClosed as e:  # sotuv yopilgan — kutishdan foyda yo'q
+            m.active = False
+            self._save()
+            await self._tell(m, f"⛔ Kuzatuv to'xtatildi: {e}\n{m.title()}")
+            return
         except UzRailError as e:
             # Joy boshqa xaridorga ketgan bo'lishi mumkin — biroz kutib, kuzatish davom etadi.
             # Ketma-ket rad etilsa (masalan, yo'lovchi ma'lumoti xato) — saytga bron yog'dirmaslik uchun to'xtatamiz.
