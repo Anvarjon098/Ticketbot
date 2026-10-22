@@ -402,6 +402,19 @@ def require_owner(request: web.Request) -> AppContext:
     return ctx
 
 
+async def all_monitors(request: web.Request):
+    """Bot egasi uchun: barcha foydalanuvchilarning kuzatuvlari (kimniki ekani bilan)."""
+    ctx = require_owner(request)
+    items = sorted(ctx.monitors.monitors.values(), key=lambda m: m.created, reverse=True)
+    result = []
+    for m in items:
+        saved = ctx.users.passengers(m.chat_id)
+        name = " ".join(filter(None, [saved[0].get("last_name"), saved[0].get("first_name")])) if saved else ""
+        result.append({**monitor_info(m), "is_mine": m.chat_id == ctx.owner_id,
+                       "user_name": name, "user_phone": ctx.users.get(m.chat_id).get("phone")})
+    return web.json_response({"monitors": result})
+
+
 async def site_login(request: web.Request):
     ctx = require_owner(request)
     data = await body(request)
@@ -425,6 +438,7 @@ def create_app(ctx: AppContext) -> web.Application:
     app.router.add_post("/api/passengers", add_passenger)
     app.router.add_delete("/api/passengers/{passport}", delete_passenger)
     app.router.add_get("/api/tickets", tickets)
+    app.router.add_get("/api/monitors", all_monitors)
     app.router.add_delete("/api/monitors/{id}", delete_monitor)
     app.router.add_post("/api/bookings/{order_id}/cancel", cancel_booking)
     app.router.add_post("/api/bookings/clear-inactive", clear_bookings)

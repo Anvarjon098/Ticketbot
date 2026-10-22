@@ -178,6 +178,12 @@
     <div id="tickets"></div>
   </section>
 
+  <!-- ===================== KUZATUVLAR (faqat bot egasi) ===================== -->
+  <section id="tab-monitors" class="hidden">
+    <h1 data-i18n="monitors_title">Kuzatuvlar</h1>
+    <div id="monitors"></div>
+  </section>
+
   <!-- ===================== HAMROHLAR ===================== -->
   <section id="tab-companions" class="hidden">
     <h1 data-i18n="companions_title">Hamrohlar</h1>
@@ -223,6 +229,7 @@
 <nav>
   <button data-tab="profile"><span class="i">👤</span><span data-i18n="nav_profile">Profil</span></button>
   <button data-tab="tickets"><span class="i">🎟</span><span data-i18n="nav_tickets">Chiptalar</span></button>
+  <button data-tab="monitors" id="nav-monitors" class="hidden"><span class="i">🔔</span><span data-i18n="nav_monitors">Kuzatuvlar</span></button>
   <button data-tab="companions"><span class="i">👥</span><span data-i18n="nav_companions">Hamrohlar</span></button>
   <button data-tab="buy" class="on"><span class="i">🚆</span><span data-i18n="nav_buy">Bilet olish</span></button>
 </nav>
@@ -238,6 +245,7 @@ const I18N = {
     page_title: "Poyezd chiptalari",
     buy_title: "Bilet olish", tickets_title: "Chiptalar", companions_title: "Hamrohlar", profile_title: "Profil",
     nav_buy: "Bilet olish", nav_tickets: "Chiptalar", nav_companions: "Hamrohlar", nav_profile: "Profil",
+    nav_monitors: "Kuzatuvlar", monitors_title: "Barcha kuzatuvlar", monitors_empty: "Faol kuzatuvlar yo'q.", mine: "Siz",
     from: "Qayerdan", to: "Qayerga", station_ph: "Stansiya nomi", swap: "Almashtirish", date: "Sana",
     search: "Reyslarni qidirish", passengers: "Yo'lovchilar", car_type: "Kategoriya",
     cat_hint: "Qaysi kategoriyalar sizga mos? Bir yoki bir nechtasini belgilang.", all_categories: "Hammasi",
@@ -302,6 +310,7 @@ const I18N = {
     page_title: "Ж/д билеты",
     buy_title: "Купить билет", tickets_title: "Билеты", companions_title: "Попутчики", profile_title: "Профиль",
     nav_buy: "Купить", nav_tickets: "Билеты", nav_companions: "Попутчики", nav_profile: "Профиль",
+    nav_monitors: "Мониторинг", monitors_title: "Все отслеживания", monitors_empty: "Отслеживаний нет.", mine: "Вы",
     from: "Откуда", to: "Куда", station_ph: "Название станции", swap: "Поменять местами", date: "Дата",
     search: "Найти поезда", passengers: "Пассажиры", car_type: "Категория",
     cat_hint: "Какие категории вам подходят? Отметьте одну или несколько.", all_categories: "Любая",
@@ -408,6 +417,7 @@ async function setLang(lang) {
   if (current === "profile") renderProfile();
   if (current === "companions") renderCompanions();
   if (current === "tickets") loadTickets();
+  if (current === "monitors") loadMonitors();
   if (state.train) { renderTrains(); renderPassengerPick(); renderCarTypes(); renderActions(); }
   else if (state.trains.length) $("search").click();  // reys nomlarini yangi tilda qayta olamiz
 }
@@ -458,6 +468,7 @@ function showTab(name) {
   document.querySelectorAll("main > section").forEach(s => s.classList.toggle("hidden", s.id !== "tab-" + name));
   window.scrollTo(0, 0);
   if (name === "tickets") loadTickets();
+  if (name === "monitors") loadMonitors();
   if (name === "companions") renderCompanions();
   if (name === "profile") renderProfile();
 }
@@ -609,6 +620,34 @@ setInterval(() => {
   }
 }, 1000);
 
+function monitorCard(m) {
+  const st = m.order_id ? `<span class="badge ok">${t("st_booked")}</span>`
+    : m.active ? `<span class="badge warn">${t("st_watching", { n: m.checks })}</span>` : `<span class="badge no">${t("st_stopped")}</span>`;
+  // "Kuzatuvlar" tabida (bot egasi) — kuzatuv kimniki ekani
+  const owner = "user_phone" in m
+    ? `<div class="muted">👤 ${m.is_mine ? t("mine") : esc([m.user_name, m.user_phone].filter(Boolean).join(" · ") || t("user"))}</div>` : "";
+  return `<div class="card">
+    <div class="row between"><div class="big">${esc(m.from_name)} → ${esc(m.to_name)}</div>${st}</div>
+    ${owner}
+    <div class="muted">${t("train")} ${esc(m.train_number)} · ${esc(m.departure)} · ${t("people", { n: m.passengers })} ·
+      ${t(m.strict ? "strict" : "loose")}</div>
+    <div style="margin-top:4px"><span class="badge info">${esc(LANG === "ru" ? m.categories_ru : m.categories_uz)}</span></div>
+    <button class="btn small danger" style="margin-top:8px" data-mon="${esc(m.id)}">${t("delete")}</button>
+  </div>`;
+}
+
+async function loadMonitors() {
+  $("monitors").innerHTML = `<div class="spinner"></div>`;
+  await run(null, async () => {
+    const { monitors } = await api("/api/monitors");
+    $("monitors").innerHTML = monitors.map(monitorCard).join("")
+      || `<div class="card empty"><div class="ico">🔔</div>${t("monitors_empty")}</div>`;
+    $("monitors").querySelectorAll("[data-mon]").forEach(b => b.onclick = () => run(b, async () => {
+      await api("/api/monitors/" + b.dataset.mon, { method: "DELETE" }); loadMonitors();
+    }));
+  });
+}
+
 async function loadTickets() {
   $("tickets").innerHTML = `<div class="spinner"></div>`;
   await run(null, async () => {
@@ -649,17 +688,7 @@ async function loadTickets() {
         </div>`; }).join("");
     }
     if (monitors.length) {
-      html += `<h2>${t("monitors_h")}</h2>` + monitors.map(m => {
-        const st = m.order_id ? `<span class="badge ok">${t("st_booked")}</span>`
-          : m.active ? `<span class="badge warn">${t("st_watching", { n: m.checks })}</span>` : `<span class="badge no">${t("st_stopped")}</span>`;
-        return `<div class="card">
-          <div class="row between"><div class="big">${esc(m.from_name)} → ${esc(m.to_name)}</div>${st}</div>
-          <div class="muted">${t("train")} ${esc(m.train_number)} · ${esc(m.departure)} · ${t("people", { n: m.passengers })} ·
-            ${t(m.strict ? "strict" : "loose")}</div>
-          <div style="margin-top:4px"><span class="badge info">${esc(LANG === "ru" ? m.categories_ru : m.categories_uz)}</span></div>
-          <button class="btn small danger" style="margin-top:8px" data-mon="${esc(m.id)}">${t("delete")}</button>
-        </div>`;
-      }).join("");
+      html += `<h2>${t("monitors_h")}</h2>` + monitors.map(monitorCard).join("");
     }
     $("tickets").innerHTML = html || `<div class="card empty"><div class="ico">🎟</div>${t("no_tickets")}<br>
       <button class="btn" style="margin-top:14px" onclick="showTab('buy')">${t("buy_title")}</button></div>`;
@@ -1039,6 +1068,7 @@ async function drawScheme(car, n) {
     document.querySelector("main").innerHTML = `<div class="card empty" style="margin-top:40px"><div class="ico">⚠️</div>${esc(e.message)}</div>`;
     return;
   }
+  $("nav-monitors").classList.toggle("hidden", !state.me.is_owner);
   if (!state.me.passengers.length) { showTab("profile"); toast(t("fill_first")); }
 })();
 </script>
