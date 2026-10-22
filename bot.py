@@ -21,7 +21,7 @@ import car_schemas
 import webapp
 from access import AccessStore
 from car_render import CarRenderer
-from timers import BookingTimers, booking_message
+from timers import BookingTimers
 from monitor import Monitor, MonitorManager
 from passengers import GENDER_LABEL, doc_type_label, guess_doc_type, parse_passenger_text
 from categories import describe, train_categories
@@ -394,7 +394,8 @@ async def list_bookings(message: Message):
             await message.answer(labels[status] + "\n" + html.escape(booking.booking_text(b).split("\n\n")[0]),
                                  reply_markup=remove_markup(b["order_id"]) if booking.is_inactive(b) else None)
             continue
-        sent = await message.answer(html.escape(booking_message(b)), reply_markup=booking.cancel_markup(b["order_id"]))
+        text, markup = timers.view(b, message.chat.id)  # foydalanuvchining tasdiq kutayotgan broni — to'lovsiz
+        sent = await message.answer(text, parse_mode=None, reply_markup=markup)
         if b.get("expires_at"):
             timers.start(message.chat.id, sent.message_id, b["order_id"])
     inactive = sum(booking.is_inactive(b) for b in bookings)
@@ -450,6 +451,67 @@ def _find_own_booking(user_id: int, order_prefix: str) -> tuple[int, dict] | Non
     return None
 
 
+async def cancel_order(call: CallbackQuery, owner_id: int, b: dict, approval: str | None = None) -> bool:
+    """Bronni saytda bekor qiladi va barcha bot xabarlarini (foydalanuvchida ham) yakunlaydi."""
+    try:
+        await booking.cancel(client, session, b["order_id"])
+    except booking.OrderNotActive as e:
+        users.set_status(owner_id, b["order_id"], "failed")
+        await timers.finalize(b["order_id"])
+        await call.message.answer(html.escape(str(e)))
+        return False
+    except UzRailError as e:
+        await call.message.edit_reply_markup(reply_markup=timers.view(b, call.message.chat.id)[1])
+        await call.message.answer(
+            f"❌ Bekor qilib bo'lmadi: {html.escape(str(e))}\n"
+            "To'langan chiptani saytning o'zida qaytarish kerak (Buyurtmalarim → Qaytarish).")
+        return False
+    if approval:
+        users.update_booking(owner_id, b["order_id"], approval=approval)
+    users.mark_cancelled(owner_id, b["order_id"])
+    await timers.finalize(b["order_id"])
+    return True
+
+
+# ---------- boshqa foydalanuvchilarning bronlarini tasdiqlash (bot egasi) ----------
+
+@router.callback_query(F.data.startswith("apr:"), F.from_user.id == OWNER_ID)
+async def approve_booking(call: CallbackQuery):
+    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
+    if not found or found[1].get("status"):
+        await call.answer("Bron topilmadi yoki allaqachon yakunlangan", show_alert=True)
+        return
+    await call.answer("Tasdiqlandi — endi saytda to'lang")
+    await timers.approve(found[1]["order_id"])
+
+
+@router.callback_query(F.data.startswith("rej:"), F.from_user.id == OWNER_ID)
+async def reject_booking_ask(call: CallbackQuery):
+    prefix = call.data.split(":", 1)[1]
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Ha, rad etish", callback_data=f"rjy:{prefix}"[:60])
+    kb.button(text="↩️ Yo'q", callback_data=f"rjn:{prefix}"[:60])
+    kb.adjust(2)
+    await call.answer()
+    await call.message.edit_reply_markup(reply_markup=kb.as_markup())
+
+
+@router.callback_query(F.data.startswith("rjn:"), F.from_user.id == OWNER_ID)
+async def reject_booking_no(call: CallbackQuery):
+    await call.answer()
+    await call.message.edit_reply_markup(reply_markup=booking.approval_markup(call.data.split(":", 1)[1]))
+
+
+@router.callback_query(F.data.startswith("rjy:"), F.from_user.id == OWNER_ID)
+async def reject_booking_yes(call: CallbackQuery):
+    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
+    if not found or found[1].get("status"):
+        await call.answer("Bron topilmadi yoki allaqachon yakunlangan", show_alert=True)
+        return
+    await call.answer("Rad etilmoqda...")
+    await cancel_order(call, found[0], found[1], approval="rejected")
+
+
 @router.callback_query(F.data.startswith("cxl:"))
 async def cancel_booking_ask(call: CallbackQuery):
     prefix = call.data.split(":", 1)[1]
@@ -459,6 +521,9 @@ async def cancel_booking_ask(call: CallbackQuery):
         return
     if found[1].get("status") in ("cancelled", "failed"):
         await call.answer("Bu bron allaqachon bekor qilingan yoki amalga oshmagan", show_alert=True)
+        return
+    if found[1].get("approval") and call.from_user.id != OWNER_ID:
+        await call.answer("Bu bronni bot egasi boshqaradi — bekor qilish uchun unga yozing.", show_alert=True)
         return
     kb = InlineKeyboardBuilder()
     kb.button(text="✅ Ha, bekor qilish", callback_data=f"cxy:{prefix}")
@@ -481,24 +546,12 @@ async def cancel_booking_yes(call: CallbackQuery):
         await call.answer("Bron topilmadi", show_alert=True)
         return
     owner_id, b = found
+    if b.get("approval") and call.from_user.id != OWNER_ID:
+        await call.answer("Bu bronni bot egasi boshqaradi.", show_alert=True)
+        return
     await call.answer("Bekor qilinmoqda...")
-    try:
-        await booking.cancel(client, session, b["order_id"])
-    except booking.OrderNotActive as e:
-        users.set_status(owner_id, b["order_id"], "failed")
-        await call.message.edit_text(
-            "⚠️ SAYTDA AMALGA OSHMAGAN\n" + html.escape(booking.booking_text(b).split("\n\n")[0])
-            + "\n\n" + html.escape(str(e)))
+    if not await cancel_order(call, owner_id, b):
         return
-    except UzRailError as e:
-        await call.message.edit_reply_markup(reply_markup=booking.cancel_markup(b["order_id"]))
-        await call.message.answer(
-            f"❌ Bekor qilib bo'lmadi: {html.escape(str(e))}\n"
-            "To'langan chiptani saytning o'zida qaytarish kerak (Buyurtmalarim → Qaytarish).")
-        return
-    users.mark_cancelled(owner_id, b["order_id"])
-    await call.message.edit_text(
-        "❌ BRON BEKOR QILINDI\n" + html.escape(booking.booking_text(b).split("\n\n")[0]))
     if call.from_user.id != OWNER_ID:
         await call.bot.send_message(OWNER_ID, f"❌ Bron bekor qilindi: {b['order_id']} "
                                               f"({b['from_name']} → {b['to_name']}, {b['departure']})", parse_mode=None)
@@ -1213,18 +1266,15 @@ async def book(call: CallbackQuery, state: FSMContext):
     await state.clear()
     record = booking.booking_record(order_id, train, choice, data["passengers"], data["from_name"], data["to_name"])
     record["expires_at"] = await booking.payment_deadline(client, session, order_id)
-    users.add_booking(call.from_user.id, record)
-    text = booking_message(record)
-    for chat_id in dict.fromkeys([call.from_user.id, OWNER_ID]):
-        sent = await call.bot.send_message(chat_id, text, parse_mode=None, reply_markup=booking.cancel_markup(order_id))
-        timers.start(chat_id, sent.message_id, order_id)  # "⏳ To'lov uchun qoldi: 11:50" — har 10 soniyada
+    # foydalanuvchiga va bot egasiga taymerli xabar; boshqa foydalanuvchiniki — egasining tasdig'i va to'lovini kutadi
+    await timers.announce(call.from_user.id, record, name=call.from_user.full_name)
 
 
 async def main():
     global monitors, WEBAPP_URL, timers
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
-    timers = BookingTimers(bot, users, client, session)
+    timers = BookingTimers(bot, users, client, session, OWNER_ID)
     timers.resume_all()  # bot qayta ishga tushgan bo'lsa — davom etayotgan bron taymerlari
 
     async def notify(chat_id: int, text: str, order_id: str | None = None):
@@ -1233,7 +1283,7 @@ async def main():
         if order_id:  # kuzatuv orqali qilingan bron — to'lov taymeri
             timers.start(chat_id, sent.message_id, order_id)
 
-    monitors = MonitorManager(client, session, notify, OWNER_ID, POLL_INTERVAL, on_booked=users.add_booking)
+    monitors = MonitorManager(client, session, notify, OWNER_ID, POLL_INTERVAL, on_booked=timers.announce)
     dp = Dispatcher()
     dp.include_router(router)
     watcher = asyncio.create_task(monitors.run())

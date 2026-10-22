@@ -75,6 +75,8 @@ MESSAGES = {
     "bad_phone": ("Telefon raqam noto'g'ri. Masalan: +998901234567", "Неверный номер телефона. Пример: +998901234567"),
     "booking_not_found": ("Bron topilmadi.", "Бронь не найдена."),
     "already_cancelled": ("Bu bron allaqachon bekor qilingan.", "Эта бронь уже отменена."),
+    "owner_manages": ("Bu bronni bot egasi boshqaradi — bekor qilish uchun unga yozing.",
+                      "Этой бронью управляет владелец бота — для отмены напишите ему."),
     "booking_active": ("Faol yoki to'langan bronni o'chirib bo'lmaydi — avval bekor qiling.",
                        "Активную или оплаченную бронь удалить нельзя — сначала отмените её."),
     "cancel_failed": ("Bekor qilib bo'lmadi: {error}. To'langan chiptani saytning o'zida qaytarish kerak.",
@@ -117,6 +119,7 @@ async def api_middleware(request: web.Request, handler):
     if init.user.id not in ctx.allowed_ids:
         return _error(tr(request, "not_allowed"), 403)
     request["user_id"] = init.user.id
+    request["user_name"] = " ".join(filter(None, [init.user.first_name, init.user.last_name]))
     try:
         return await handler(request)
     except ApiError as e:
@@ -302,15 +305,10 @@ async def book(request: web.Request):
     record = booking.booking_record(order_id, train, choice, chosen,
                                     str(data.get("from_name") or ""), str(data.get("to_name") or ""))
     record["expires_at"] = await booking.payment_deadline(ctx.client, ctx.session, order_id)
-    ctx.users.add_booking(uid, record)
-    text = "✅ Bron qilindi!\n" + booking.booking_text(record)
-    for chat_id in {uid, ctx.owner_id}:
-        try:
-            sent = await ctx.bot.send_message(chat_id, text, parse_mode=None, reply_markup=booking.cancel_markup(order_id))
-            if ctx.timers:  # bot xabarida ham to'lov taymeri
-                ctx.timers.start(chat_id, sent.message_id, order_id)
-        except Exception:
-            log.exception("Xabar yuborilmadi: %s", chat_id)
+    if ctx.timers:  # saqlaydi va botda xabar beradi; boshqa foydalanuvchiniki — egasining tasdig'ini kutadi
+        record = await ctx.timers.announce(uid, record, name=request.get("user_name"))
+    else:
+        ctx.users.add_booking(uid, record)
     return web.json_response({"booking": record})
 
 
@@ -324,15 +322,21 @@ async def cancel_booking(request: web.Request):
     owner_uid, record = found
     if record.get("status") in ("cancelled", "failed"):
         raise ApiError("already_cancelled", 409)
+    if record.get("approval") and uid != ctx.owner_id:
+        raise ApiError("owner_manages", 403)
     require_site_account(ctx)
     try:
         await booking.cancel(ctx.client, ctx.session, order_id)
     except booking.OrderNotActive as e:
         ctx.users.set_status(owner_uid, order_id, "failed")
+        if ctx.timers:
+            await ctx.timers.finalize(order_id)
         return web.json_response({"bookings": ctx.users.bookings(uid), "notice": e.text(lang_of(request))})
     except UzRailError as e:
         raise ApiError(tr(request, "cancel_failed", error=e.text(lang_of(request))), 422)
     ctx.users.mark_cancelled(owner_uid, order_id)
+    if ctx.timers:  # bot xabarlari (foydalanuvchida ham) "bekor qilindi" bo'ladi
+        await ctx.timers.finalize(order_id)
     text = (f"❌ Bron bekor qilindi (ilova orqali): {order_id}\n"
             f"{record['from_name']} → {record['to_name']}, {record['departure']}")
     for chat_id in {owner_uid, ctx.owner_id}:

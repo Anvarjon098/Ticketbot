@@ -274,7 +274,11 @@ const I18N = {
     order: "Buyurtma", pay: "💳 Saytda to'lash",
     cancel_booking: "❌ Bronni bekor qilish", st_cancelled: "bekor qilingan", cancelled_ok: "Bron bekor qilindi",
     st_failed: "amalga oshmagan", st_expired: "muddati tugagan", st_paid: "to'langan",
-    pay_left: "To'lov uchun qoldi", until: "{time} gacha",
+    pay_left: "To'lov uchun qoldi", until: "{time} gacha", hold_left: "Bron saqlanadi",
+    st_pending: "tasdiq kutilmoqda", st_approved: "tasdiqlandi", st_rejected: "rad etildi",
+    pending_note: "Bot egasi bronni tasdiqlab, saytda to'lashini kuting. Tasdiqlanganda va to'langanda botda xabar keladi.",
+    approved_note: "Bot egasi tasdiqladi — to'lov amalga oshirilmoqda. To'langanda botda xabar keladi.",
+    booked_pending_alert: "Bron qilindi! Vagon {car}, joylar: {seats}.\nBot egasiga yuborildi — u tasdiqlab to'lashini kuting.",
     remove_booking: "Ro'yxatdan o'chirish", removed_ok: "Ro'yxatdan o'chirildi", clear_inactive: "Tozalash ({n})",
     cleared_ok: "{n} ta bron ro'yxatdan o'chirildi",
     confirm_clear: "Bekor qilingan, amalga oshmagan va muddati tugagan bronlar ro'yxatdan o'chirilsinmi? Saytdagi buyurtmalarga ta'sir qilmaydi.",
@@ -334,7 +338,11 @@ const I18N = {
     order: "Заказ", pay: "💳 Оплатить на сайте",
     cancel_booking: "❌ Отменить бронь", st_cancelled: "отменено", cancelled_ok: "Бронь отменена",
     st_failed: "не оформлено", st_expired: "срок истёк", st_paid: "оплачено",
-    pay_left: "Осталось на оплату", until: "до {time}",
+    pay_left: "Осталось на оплату", until: "до {time}", hold_left: "Бронь держится",
+    st_pending: "ждёт подтверждения", st_approved: "подтверждено", st_rejected: "отклонено",
+    pending_note: "Дождитесь, пока владелец бота подтвердит бронь и оплатит её на сайте. О подтверждении и оплате придёт сообщение в боте.",
+    approved_note: "Владелец бота подтвердил — идёт оплата. Когда оплатит, придёт сообщение в боте.",
+    booked_pending_alert: "Забронировано! Вагон {car}, места: {seats}.\nОтправлено владельцу бота — дождитесь подтверждения и оплаты.",
     remove_booking: "Удалить из списка", removed_ok: "Удалено из списка", clear_inactive: "Очистить ({n})",
     cleared_ok: "Удалено броней: {n}",
     confirm_clear: "Удалить из списка отменённые, неоформленные и просроченные брони? На заказы на сайте это не влияет.",
@@ -613,13 +621,17 @@ async function loadTickets() {
         ? `<span class="chip" id="clear-inactive">🧹 ${t("clear_inactive", { n: inactive })}</span>` : ""}</div>` + bookings.map(b => {
         // muddati brauzerda tugagan, server hali belgilamagan bo'lsa ham — "tugagan" deb ko'rsatamiz
         const status = b.status || (b.expires_at && b.expires_at * 1000 <= Date.now() ? "expired" : null);
-        const badge = { cancelled: ["no", "st_cancelled"], failed: ["no", "st_failed"], expired: ["no", "st_expired"], paid: ["ok", "st_paid"] }[status];
+        // boshqa foydalanuvchining broni: bot egasi tasdiqlab to'laydi — to'lov va bekor qilish tugmalari yo'q
+        const managed = !!b.approval;
+        const badge = { cancelled: ["no", b.approval === "rejected" ? "st_rejected" : "st_cancelled"], failed: ["no", "st_failed"],
+          expired: ["no", "st_expired"], paid: ["ok", "st_paid"] }[status]
+          || (managed ? (b.approval === "approved" ? ["info", "st_approved"] : ["warn", "st_pending"]) : null);
         return `
         <div class="card" style="${status && status !== "paid" ? "opacity:.6" : ""}">
           <div class="row between"><div class="big">${esc(b.from_name)} → ${esc(b.to_name)}</div>
             ${badge ? `<span class="badge ${badge[0]}">${t(badge[1])}</span>` : `<span class="badge info">${esc(b.train_number)}</span>`}</div>
           ${!status && b.expires_at ? `<div class="row between" style="margin:8px 0; padding:10px 12px; border-radius:10px; background:color-mix(in srgb, var(--warn) 14%, transparent)">
-            <span>⏳ ${t("pay_left")}</span>
+            <span>⏳ ${t(managed ? "hold_left" : "pay_left")}</span>
             <span><b class="times" data-expires="${b.expires_at}">${leftText(b.expires_at)}</b>
               <span class="muted"> · ${t("until", { time: new Date(b.expires_at * 1000).toTimeString().slice(0, 5) })}</span></span></div>` : ""}
           <div class="muted">${esc(b.brand)}</div>
@@ -630,7 +642,7 @@ async function loadTickets() {
           <div class="kv"><span>${t("passengers")}</span><span>${b.passengers.map(esc).join("<br>")}</span></div>
           <div class="kv"><span>${t("price")}</span><span>≈ ${money(b.price)}</span></div>
           <div class="kv"><span>${t("order")}</span><span>${esc(b.order_id)}</span></div>
-          ${status ? "" : `
+          ${status ? "" : managed ? `<div class="muted" style="margin-top:10px">${t(b.approval === "approved" ? "approved_note" : "pending_note")}</div>` : `
           <button class="btn" data-pay="${esc(b.pay_url)}">${t("pay")}</button>
           <button class="btn danger" data-cancel-order="${esc(b.order_id)}">${t("cancel_booking")}</button>`}
           ${status && status !== "paid" ? `<button class="btn danger" data-remove-order="${esc(b.order_id)}">🗑 ${t("remove_booking")}</button>` : ""}
@@ -911,7 +923,8 @@ function renderCarPicker(box, n) {
     try {
       const { booking } = await api("/api/book", { method: "POST", body: tripBody({ car_key: car.key, seats: state.picked, tier: carTier(car) }) });
       tg?.HapticFeedback?.notificationOccurred("success");
-      alertThen(t("booked_alert", { car: booking.car_number, seats: booking.seats.join(", ") }), () => showTab("tickets"));
+      alertThen(t(booking.approval ? "booked_pending_alert" : "booked_alert", { car: booking.car_number, seats: booking.seats.join(", ") }),
+        () => showTab("tickets"));
     } catch (e) {
       if (e.status === 409) await reloadPlaces();  // joy band bo'lib qolgan — sxemani yangilaymiz
       throw e;

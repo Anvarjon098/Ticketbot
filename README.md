@@ -75,6 +75,19 @@ har safar saytdan olinadi; ma'lumotnoma joyi tugagan reysda qaysi kategoriyalarn
 ko'rsatish uchun ishlatiladi. Yangi poyezdlar qo'shilsa: `.venv\Scripts\python update_catalog.py`
 (~20 daqiqa), keyin botni qayta ishga tushiring.
 
+## Boshqa foydalanuvchilarning bronlari (egasi tasdiqlaydi va to'laydi)
+Ruxsat berilgan foydalanuvchi bilet olganda (botda, ilovada yoki kuzatuv orqali) joy saytda darhol
+band qilinadi (12 daqiqa), lekin to'lovni bot egasi qiladi:
+- egasiga **🔔 TASDIQLASH KERAK** xabari keladi: to'lov havolasi, taymer, **✅ Tasdiqlash / ❌ Rad etish**;
+- foydalanuvchi "bot egasi tasdiqlab to'lashini kuting" holatini ko'radi — to'lov havolasi va bekor
+  qilish tugmasi unga berilmaydi;
+- tasdiqlansa — foydalanuvchiga xabar boradi, egasi saytda to'laydi; bot har 30 soniyada saytdan
+  tekshiradi va to'langanda foydalanuvchiga **✅ TO'LANDI** xabarini yuboradi;
+- rad etilsa — bron saytda bekor qilinadi va foydalanuvchiga xabar boradi;
+- 12 daqiqada to'lanmasa — bron bekor bo'ladi, ikkala tomonga ham xabar boradi.
+
+Egasining o'z bronlari oldingidek (to'lov havolasi va bekor qilish tugmasi bilan).
+
 ## Bronni bekor qilish
 To'lanmagan bronni bekor qilish mumkin (joylar saytda bo'shatiladi):
 - botda — bron haqidagi xabar ostidagi **❌ Bronni bekor qilish** tugmasi yoki **🎟 Chiptalarim** menyusi;

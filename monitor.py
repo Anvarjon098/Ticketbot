@@ -19,7 +19,7 @@ MONITORS_FILE = Path(__file__).with_name("monitors.json")
 log = logging.getLogger(__name__)
 
 Notify = Callable[..., Awaitable[None]]  # notify(chat_id, text, order_id=None)
-OnBooked = Callable[[int, dict], None]
+OnBooked = Callable[[int, dict, str], Awaitable[object]]  # on_booked(chat_id, record, headline)
 
 
 @dataclass
@@ -200,6 +200,8 @@ class MonitorManager:
         self._save()
         record = booking_record(order_id, m.train, choice, m.passengers, m.from_name, m.to_name)
         record["expires_at"] = await payment_deadline(self.client, self.session, order_id)
-        if self.on_booked:
-            self.on_booked(m.chat_id, record)
-        await self._tell(m, "🎉 KUZATUVDAGI REYSDA JOY BRON QILINDI!\n" + booking_text(record), order_id=order_id)
+        headline = "🎉 KUZATUVDAGI REYSDA JOY BRON QILINDI!"
+        if self.on_booked:  # saqlaydi va xabar beradi (boshqa foydalanuvchiniki — egasining tasdig'i bilan)
+            await self.on_booked(m.chat_id, record, headline)
+        else:
+            await self._tell(m, f"{headline}\n" + booking_text(record), order_id=order_id)

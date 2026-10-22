@@ -88,7 +88,10 @@ class UserStore:
         self.set_status(user_id, order_id, "cancelled")
 
     def set_status(self, user_id: int, order_id: str, status: str):
-        """status: "cancelled" — bekor qilingan, "failed" — saytda amalga oshmagan."""
-        bookings = [{**b, "status": status, "status_at": time.time()} if b.get("order_id") == order_id else b
-                    for b in self.bookings(user_id)]
+        """status: "cancelled" — bekor qilingan, "failed" — saytda amalga oshmagan, "expired", "paid"."""
+        self.update_booking(user_id, order_id, status=status, status_at=time.time())
+
+    def update_booking(self, user_id: int, order_id: str, **fields):
+        """Bron yozuvidagi maydonlarni yangilaydi (masalan approval="approved")."""
+        bookings = [{**b, **fields} if b.get("order_id") == order_id else b for b in self.bookings(user_id)]
         self.update(user_id, bookings=bookings)

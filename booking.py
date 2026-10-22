@@ -140,14 +140,25 @@ def booking_record(order_id: str, train: dict, choice: SeatChoice, passengers: l
     }
 
 
-def booking_text(b: dict) -> str:
-    return (
+def booking_text(b: dict, with_pay: bool = True) -> str:
+    """Bron tafsilotlari; with_pay=False — to'lov havolasisiz (to'lovni bot egasi qiladigan foydalanuvchi uchun)."""
+    text = (
         f"Poyezd {b['train_number']} {b['brand']}, {b['from_name']} → {b['to_name']}\n"
         f"Jo'nash: {b['departure']}\n"
         f"Vagon {b['car_number']} ({b['car_type']}), joylar: {', '.join(map(str, b['seats']))}\n"
         f"Yo'lovchilar: {', '.join(b['passengers'])}\n"
-        f"Buyurtma: {b['order_id']}\n\n"
-        "⏳ Bron vaqtinchalik — to'lovni saytda tezda amalga oshiring:\n"
-        f"{b['pay_url']}\n"
-        f"yoki {BASE_URL}/uz/cabinet/orders"
+        f"Buyurtma: {b['order_id']}"
     )
+    if not with_pay:
+        return text
+    return (text + "\n\n⏳ Bron vaqtinchalik — to'lovni saytda tezda amalga oshiring:\n"
+            f"{b['pay_url']}\n"
+            f"yoki {BASE_URL}/uz/cabinet/orders")
+
+
+def approval_markup(order_id: str) -> InlineKeyboardMarkup:
+    """Boshqa foydalanuvchining broni: bot egasi tasdiqlab to'laydi yoki rad etadi."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"apr:{order_id}"[:60]),
+        InlineKeyboardButton(text="❌ Rad etish", callback_data=f"rej:{order_id}"[:60]),
+    ]])
