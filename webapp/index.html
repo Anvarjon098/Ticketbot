@@ -222,6 +222,19 @@
         <input id="site-password" type="password" data-i18n-ph="password_ph">
         <button class="btn secondary" id="site-login" data-i18n="site_login">Saytga kirish</button>
       </div>
+      <h2 data-i18n="pay_card_h">To'lov kartasi</h2>
+      <div class="card">
+        <div class="muted" data-i18n="card_hint">Boshqa foydalanuvchilar bron qilganda ularga shu karta va chipta summasi yuboriladi.</div>
+        <div id="card-view"></div>
+        <div id="card-form">
+          <label class="f" data-i18n="card_number">Karta raqami</label>
+          <input id="card-number" inputmode="numeric" autocomplete="off" placeholder="8600 1234 5678 9012">
+          <label class="f" data-i18n="card_holder">Karta egasi</label>
+          <input id="card-holder" autocomplete="off" data-i18n-ph="card_holder_ph">
+          <button class="btn secondary" id="card-save" data-i18n="save">Saqlash</button>
+          <button class="btn secondary hidden" id="card-cancel" data-i18n="cancel">Bekor qilish</button>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -284,7 +297,13 @@ const I18N = {
     st_failed: "amalga oshmagan", st_expired: "muddati tugagan", st_paid: "to'langan",
     pay_left: "To'lov uchun qoldi", until: "{time} gacha", hold_left: "Bron saqlanadi",
     st_pending: "tasdiq kutilmoqda", st_approved: "tasdiqlandi", st_rejected: "rad etildi",
-    pending_note: "Bot egasi bronni tasdiqlab, saytda to'lashini kuting. Tasdiqlanganda va to'langanda botda xabar keladi.",
+    pending_note: "Bot egasi chiptani saytda to'lab tasdiqlagach, chipta botda yuboriladi.",
+    pay_card_h: "To'lov kartasi", card_number: "Karta raqami", card_holder: "Karta egasi", card_holder_ph: "Ism Familiya",
+    card_hint: "Boshqa foydalanuvchilar bron qilganda ularga shu karta va chipta summasi yuboriladi.",
+    card_saved: "Karta saqlandi", transfer_h: "💳 Chipta pulini o'tkazing", amount: "Summa", copy: "Nusxalash", copied: "Nusxalandi",
+    transfer_note: "Pulni shu kartaga o'tkazing. Bot egasi chiptani saytda to'lab tasdiqlagach, chipta botda yuboriladi.",
+    transfer_done: "To'lov qildim", transfer_sent: "Bot egasiga xabar berildi",
+    transfer_reported: "✅ To'lov haqida bot egasiga xabar berildi — u tekshirib, chiptani to'laydi. Chipta botda yuboriladi.",
     approved_note: "Bot egasi tasdiqladi — to'lov amalga oshirilmoqda. To'langanda botda xabar keladi.",
     booked_pending_alert: "Bron qilindi! Vagon {car}, joylar: {seats}.\nBot egasiga yuborildi — u tasdiqlab to'lashini kuting.",
     remove_booking: "Ro'yxatdan o'chirish", removed_ok: "Ro'yxatdan o'chirildi", clear_inactive: "Tozalash ({n})",
@@ -349,7 +368,13 @@ const I18N = {
     st_failed: "не оформлено", st_expired: "срок истёк", st_paid: "оплачено",
     pay_left: "Осталось на оплату", until: "до {time}", hold_left: "Бронь держится",
     st_pending: "ждёт подтверждения", st_approved: "подтверждено", st_rejected: "отклонено",
-    pending_note: "Дождитесь, пока владелец бота подтвердит бронь и оплатит её на сайте. О подтверждении и оплате придёт сообщение в боте.",
+    pending_note: "Когда владелец бота оплатит билет на сайте и подтвердит, билет придёт в боте.",
+    pay_card_h: "Карта для оплаты", card_number: "Номер карты", card_holder: "Владелец карты", card_holder_ph: "Имя Фамилия",
+    card_hint: "Когда другие пользователи бронируют, им отправляются эта карта и сумма билета.",
+    card_saved: "Карта сохранена", transfer_h: "💳 Переведите оплату за билет", amount: "Сумма", copy: "Копировать", copied: "Скопировано",
+    transfer_note: "Переведите деньги на эту карту. Когда владелец бота оплатит билет на сайте и подтвердит, билет придёт в боте.",
+    transfer_done: "Я оплатил(а)", transfer_sent: "Владелец бота уведомлён",
+    transfer_reported: "✅ Владелец бота уведомлён об оплате — он проверит и оплатит билет. Билет придёт в боте.",
     approved_note: "Владелец бота подтвердил — идёт оплата. Когда оплатит, придёт сообщение в боте.",
     booked_pending_alert: "Забронировано! Вагон {car}, места: {seats}.\nОтправлено владельцу бота — дождитесь подтверждения и оплаты.",
     remove_booking: "Удалить из списка", removed_ok: "Удалено из списка", clear_inactive: "Очистить ({n})",
@@ -557,8 +582,28 @@ function renderProfile() {
   if (state.me.is_owner) {
     if (!$("site-phone").value && state.me.phone) $("site-phone").value = "+" + state.me.phone;
     $("site-status").textContent = t("status", { s: state.me.site_status });
+    renderCard(false);
   }
 }
+// Saqlangan karta ko'rinadi, "Tahrirlash" — forma; karta hali kiritilmagan bo'lsa forma darhol ochiq
+function renderCard(editing) {
+  const number = (state.me.card_number || "").replace(/(\d{4})(?=\d)/g, "$1 ");
+  const open = editing || !number;
+  $("card-form").classList.toggle("hidden", !open);
+  $("card-cancel").classList.toggle("hidden", !number);
+  $("card-view").innerHTML = open ? "" : `
+    <div class="kv"><span>${t("card_number")}</span><span><b>${esc(number)}</b></span></div>
+    ${state.me.card_holder ? `<div class="kv"><span>${t("card_holder")}</span><span>${esc(state.me.card_holder)}</span></div>` : ""}
+    <button class="btn small secondary" style="margin-top:8px" id="card-edit">${t("edit")}</button>`;
+  if (open) { $("card-number").value = number; $("card-holder").value = state.me.card_holder || ""; }
+  else $("card-edit").onclick = () => { haptic(); renderCard(true); $("card-number").focus(); };
+}
+$("card-cancel").onclick = () => renderCard(false);
+$("card-save").onclick = () => run($("card-save"), async () => {
+  const res = await api("/api/owner-card", { method: "POST", body: { number: $("card-number").value, holder: $("card-holder").value } });
+  Object.assign(state.me, res);
+  renderProfile(); haptic(); toast(t("card_saved"));
+});
 $("site-login").onclick = () => run($("site-login"), async () => {
   const res = await api("/api/site-login", { method: "POST", body: { phone: $("site-phone").value, password: $("site-password").value } });
   $("site-password").value = "";
@@ -681,7 +726,16 @@ async function loadTickets() {
           <div class="kv"><span>${t("passengers")}</span><span>${b.passengers.map(esc).join("<br>")}</span></div>
           <div class="kv"><span>${t("price")}</span><span>≈ ${money(b.price)}</span></div>
           <div class="kv"><span>${t("order")}</span><span>${esc(b.order_id)}</span></div>
-          ${status ? "" : managed ? `<div class="muted" style="margin-top:10px">${t(b.approval === "approved" ? "approved_note" : "pending_note")}</div>` : `
+          ${!status && b.card ? `<div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:var(--soft)">
+            <div class="big">${t("transfer_h")}</div>
+            <div class="kv"><span>${t("amount")}</span><span><b>≈ ${money(b.price)}</b></span></div>
+            <div class="kv"><span>${t("card_number")}</span><span><b class="times">${esc(b.card.number)}</b></span></div>
+            ${b.card.holder ? `<div class="kv"><span>${t("card_holder")}</span><span>${esc(b.card.holder)}</span></div>` : ""}
+            <div style="display:flex; justify-content:flex-end; margin-top:10px">
+              <button class="btn small secondary" style="background:var(--card)" data-copy="${esc(b.card.number.replace(/\s/g, ""))}">📋 ${t("copy")}</button></div>
+            <div class="muted" style="margin-top:8px">${t(b.transfer_reported ? "transfer_reported" : "transfer_note")}</div>
+            ${b.transfer_reported ? "" : `<button class="btn" style="margin-top:10px" data-transferred="${esc(b.order_id)}">✅ ${t("transfer_done")}</button>`}</div>` : ""}
+          ${status || b.card ? "" : managed ? `<div class="muted" style="margin-top:10px">${t(b.approval === "approved" ? "approved_note" : "pending_note")}</div>` : `
           <button class="btn" data-pay="${esc(b.pay_url)}">${t("pay")}</button>
           <button class="btn danger" data-cancel-order="${esc(b.order_id)}">${t("cancel_booking")}</button>`}
           ${status && status !== "paid" ? `<button class="btn danger" data-remove-order="${esc(b.order_id)}">🗑 ${t("remove_booking")}</button>` : ""}
@@ -693,6 +747,12 @@ async function loadTickets() {
     $("tickets").innerHTML = html || `<div class="card empty"><div class="ico">🎟</div>${t("no_tickets")}<br>
       <button class="btn" style="margin-top:14px" onclick="showTab('buy')">${t("buy_title")}</button></div>`;
     $("tickets").querySelectorAll("[data-pay]").forEach(b => b.onclick = () => tg?.openLink ? tg.openLink(b.dataset.pay) : open(b.dataset.pay));
+    $("tickets").querySelectorAll("[data-copy]").forEach(b => b.onclick = () =>
+      navigator.clipboard?.writeText(b.dataset.copy).then(() => { haptic(); toast(t("copied")); }));
+    $("tickets").querySelectorAll("[data-transferred]").forEach(b => b.onclick = () => run(b, async () => {
+      await api("/api/bookings/" + encodeURIComponent(b.dataset.transferred) + "/transferred", { method: "POST" });
+      tg?.HapticFeedback?.notificationOccurred("success"); toast(t("transfer_sent")); loadTickets();
+    }));
     $("tickets").querySelectorAll("[data-remove-order]").forEach(b => b.onclick = () => run(b, async () => {
       await api("/api/bookings/" + encodeURIComponent(b.dataset.removeOrder), { method: "DELETE" });
       haptic(); toast(t("removed_ok")); loadTickets();

@@ -4,10 +4,13 @@ Har bir API so'rovi Telegram imzosi (initData) bilan tekshiriladi, shuning uchun
 botdan ochgan va ruxsati bor foydalanuvchi ishlata oladi.
 """
 import asyncio
+import hashlib
+import hmac
 import logging
 import re
 import time
 from dataclasses import dataclass
+from typing import Awaitable, Callable
 from datetime import date, datetime
 from pathlib import Path
 
@@ -29,6 +32,9 @@ from uzrail import UzRailClient, UzRailError
 STATIC_DIR = Path(__file__).with_name("webapp")
 CLOUDFLARED = Path(__file__).parent / "bin" / "cloudflared.exe"
 INIT_DATA_MAX_AGE = 24 * 3600
+# Pastki menyu (reply keyboard) tugmasidan ochilgan ilovaga Telegram initData bermaydi — admin panel havolasida
+# bot tokeni bilan imzolangan kalit bo'ladi (faqat /api/admin/... uchun, bot egasi sifatida). /start yangilaydi.
+ADMIN_KEY_TTL = 30 * 24 * 3600
 log = logging.getLogger(__name__)
 
 
@@ -46,6 +52,8 @@ class AppContext:
     timers: object | None = None  # timers.BookingTimers — bot xabaridagi to'lov taymeri
     proxy: site_proxy.SiteProxy | None = None  # saytni bot egasining akkaunti bilan ochish
     public_url: str | None = None  # ilovaning tashqi manzili (main() da aniqlanadi)
+    access: object | None = None  # access.AccessStore — admin panel: ism, @username, ruxsat holati
+    set_access: Callable[[int, bool], Awaitable[str]] | None = None  # ruxsat berish/olish (bot.apply_access)
 
 
 CTX = web.AppKey("ctx", AppContext)
@@ -75,6 +83,7 @@ MESSAGES = {
                     "Одно из выбранных мест уже заняли. Схема обновлена — выберите другое место."),
     "monitor_not_found": ("Kuzatuv topilmadi.", "Отслеживание не найдено."),
     "owner_only": ("Faqat bot egasi uchun.", "Только для владельца бота."),
+    "bad_card": ("Karta raqami noto'g'ri — 16 ta raqam kiriting.", "Неверный номер карты — введите 16 цифр."),
     "bad_phone": ("Telefon raqam noto'g'ri. Masalan: +998901234567", "Неверный номер телефона. Пример: +998901234567"),
     "booking_not_found": ("Bron topilmadi.", "Бронь не найдена."),
     "already_cancelled": ("Bu bron allaqachon bekor qilingan.", "Эта бронь уже отменена."),
@@ -108,21 +117,41 @@ def _error(message: str, status: int) -> web.Response:
     return web.json_response({"error": message}, status=status)
 
 
+def _admin_sign(secret: str, owner_id: int, exp: int) -> str:
+    return hmac.new(secret.encode(), f"admin:{owner_id}:{exp}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def admin_key(secret: str, owner_id: int) -> str:
+    exp = int(time.time() + ADMIN_KEY_TTL)
+    return f"{exp}.{_admin_sign(secret, owner_id, exp)}"
+
+
+def admin_key_ok(secret: str, owner_id: int, key: str) -> bool:
+    exp, _, sig = (key or "").partition(".")
+    return exp.isdigit() and int(exp) > time.time() and hmac.compare_digest(sig, _admin_sign(secret, owner_id, int(exp)))
+
+
 @web.middleware
 async def api_middleware(request: web.Request, handler):
     if not request.path.startswith("/api/") or site_proxy.is_site_path(request.path):
         return await handler(request)  # sahifa yoki saytning API'si (proksi o'zi tekshiradi)
     ctx = request.app[CTX]
-    try:
-        init = safe_parse_webapp_init_data(ctx.bot.token, request.headers.get("X-Telegram-Init-Data", ""))
-    except ValueError:
-        return _error(tr(request, "open_via_bot"), 401)
-    if time.time() - init.auth_date.timestamp() > INIT_DATA_MAX_AGE:
-        return _error(tr(request, "session_expired"), 401)
-    if init.user.id not in ctx.allowed_ids:
-        return _error(tr(request, "not_allowed"), 403)
-    request["user_id"] = init.user.id
-    request["user_name"] = " ".join(filter(None, [init.user.first_name, init.user.last_name]))
+    key = request.headers.get("X-Admin-Key")
+    if key and request.path.startswith("/api/admin/"):  # menyudagi "Admin panel" tugmasi (initData yo'q)
+        if not admin_key_ok(ctx.bot.token, ctx.owner_id, key):
+            return _error("Admin panel havolasi eskirgan — botda /start ni bosing.", 401)
+        request["user_id"], request["user_name"] = ctx.owner_id, ""
+    else:
+        try:
+            init = safe_parse_webapp_init_data(ctx.bot.token, request.headers.get("X-Telegram-Init-Data", ""))
+        except ValueError:
+            return _error(tr(request, "open_via_bot"), 401)
+        if time.time() - init.auth_date.timestamp() > INIT_DATA_MAX_AGE:
+            return _error(tr(request, "session_expired"), 401)
+        if init.user.id not in ctx.allowed_ids:
+            return _error(tr(request, "not_allowed"), 403)
+        request["user_id"] = init.user.id
+        request["user_name"] = " ".join(filter(None, [init.user.first_name, init.user.last_name]))
     try:
         return await handler(request)
     except ApiError as e:
@@ -211,6 +240,8 @@ async def me(request: web.Request):
         "is_owner": is_owner,
         "site_linked": bool(ctx.session.account),
         "site_status": ctx.session.status(lang_of(request)) if is_owner else None,
+        "card_number": user.get("card_number") if is_owner else None,
+        "card_holder": user.get("card_holder") if is_owner else None,
         "passengers": ctx.users.passengers(uid),
     })
 
@@ -243,6 +274,11 @@ async def tickets(request: web.Request):
     if uid == ctx.owner_id and ctx.proxy and ctx.public_url:  # bot egasi saytga qayta login qilmasdan to'laydi
         bookings = [{**b, "pay_url": site_proxy.pay_link(ctx.public_url, ctx.bot.token, b["order_id"],
                                                          b.get("expires_at"))} for b in bookings]
+    card = ctx.timers.card() if ctx.timers and uid != ctx.owner_id else None
+    if card:  # bot egasi to'laydigan bronlar: chipta pulini o'tkazish uchun karta
+        card = {"number": booking.format_card(card["number"]), "holder": card["holder"]}
+        bookings = [{**b, "card": card} if b.get("approval") == "pending" and not b.get("status") else b
+                    for b in bookings]
     return web.json_response({"bookings": bookings, "monitors": [monitor_info(m) for m in own]})
 
 
@@ -426,6 +462,26 @@ async def site_login(request: web.Request):
     return web.json_response({"site_status": ctx.session.status(lang_of(request))})
 
 
+async def owner_card(request: web.Request):
+    """Bot egasining to'lov kartasi: boshqa foydalanuvchilar chipta pulini shu kartaga o'tkazadi."""
+    ctx = require_owner(request)
+    data = await body(request)
+    number = re.sub(r"\D", "", str(data.get("number") or ""))
+    if number and len(number) != 16:
+        raise ApiError("bad_card")
+    holder = str(data.get("holder") or "").strip()[:60]
+    ctx.users.update(ctx.owner_id, card_number=number or None, card_holder=holder if number else None)
+    return web.json_response({"card_number": number or None, "card_holder": holder if number else None})
+
+
+async def transfer_done(request: web.Request):
+    """Foydalanuvchi: chipta pulini bot egasining kartasiga o'tkazdi — egasiga xabar boradi."""
+    ctx, uid = request.app[CTX], request["user_id"]
+    if not ctx.timers or not await ctx.timers.report_transfer(request.match_info["order_id"], uid):
+        raise ApiError("booking_not_found", 404)
+    return web.json_response({"ok": True})
+
+
 async def index(request: web.Request):
     return web.FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
@@ -434,6 +490,8 @@ def create_app(ctx: AppContext) -> web.Application:
     app = web.Application(middlewares=[api_middleware])
     app[CTX] = ctx
     app.router.add_get("/", index)
+    import admin_api  # admin_api webapp ni import qiladi — aylanma importdan qochish uchun shu yerda
+    admin_api.add_routes(app)
     app.router.add_get("/api/me", me)
     app.router.add_post("/api/passengers", add_passenger)
     app.router.add_delete("/api/passengers/{passport}", delete_passenger)
@@ -441,6 +499,7 @@ def create_app(ctx: AppContext) -> web.Application:
     app.router.add_get("/api/monitors", all_monitors)
     app.router.add_delete("/api/monitors/{id}", delete_monitor)
     app.router.add_post("/api/bookings/{order_id}/cancel", cancel_booking)
+    app.router.add_post("/api/bookings/{order_id}/transferred", transfer_done)
     app.router.add_post("/api/bookings/clear-inactive", clear_bookings)
     app.router.add_delete("/api/bookings/{order_id}", delete_booking)
     app.router.add_get("/api/stations", stations)
@@ -449,6 +508,7 @@ def create_app(ctx: AppContext) -> web.Application:
     app.router.add_post("/api/book", book)
     app.router.add_post("/api/monitor", start_monitor)
     app.router.add_post("/api/site-login", site_login)
+    app.router.add_post("/api/owner-card", owner_card)
     app.router.add_static("/schemas", car_schemas.SCHEMA_DIR)  # vagon sxemalari (saytdan olingan SVG)
     if ctx.proxy:  # qolgan barcha manzillar — sayt (faqat imzoli havola orqali kirilganda)
         app.router.add_get("/sitepay/{order_id}", ctx.proxy.start_page)

@@ -45,6 +45,19 @@ class UserStore:
             saved = current + [passenger]
         self.update(user_id, saved=saved)
 
+    def replace_passenger(self, user_id: int, index: int, passenger: dict):
+        """index-dagi yo'lovchini o'z o'rnida almashtiradi (pasport o'zgargan bo'lsa ham; boshqa joydagi
+        shu pasportli yozuv olib tashlanadi). Admin panelda tahrirlash uchun."""
+        saved = [p for i, p in enumerate(self.passengers(user_id))
+                 if i == index or p["passport"] != passenger["passport"]]
+        index = min(index, len(saved) - 1)
+        self.update(user_id, saved=saved[:index] + [passenger] + saved[index + 1:])
+
+    def display_name(self, user_id: int) -> str | None:
+        """Bot egasi admin panelda bergan ism, bo'lmasa Telegram ismi."""
+        user = self.get(user_id)
+        return user.get("display_name") or user.get("name")
+
     def remove_passenger(self, user_id: int, passport: str) -> dict | None:
         saved = self.passengers(user_id)
         removed = next((p for p in saved if p["passport"] == passport), None)

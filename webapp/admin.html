@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Admin panel</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-secondary-bg-color, #f1f2f6);
+    --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+    --text: var(--tg-theme-text-color, #15171c);
+    --hint: var(--tg-theme-hint-color, #8a8f98);
+    --accent: var(--tg-theme-button-color, #2481cc);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --danger: var(--tg-theme-destructive-text-color, #e5484d);
+    --ok: #2fa84f;
+    --warn: #e59a14;
+    --line: color-mix(in srgb, var(--hint) 22%, transparent);
+    --soft: color-mix(in srgb, var(--accent) 12%, transparent);
+    --radius: 14px;
+    /* grafik: holatlar (to'langan / kutilmoqda / bekor) — validatsiyadan o'tgan kategoriya ranglari */
+    --s-paid: #2a78d6; --s-active: #eb6834; --s-lost: #1baf7a; --s-bar: #2a78d6;
+  }
+  :root[data-theme="dark"] { --s-paid: #3987e5; --s-active: #d95926; --s-lost: #199e70; --s-bar: #3987e5; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { padding: 12px 12px calc(84px + env(safe-area-inset-bottom)); max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 6px 4px 12px; }
+  h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--hint); margin: 18px 6px 8px; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .between { justify-content: space-between; }
+  .grow { flex: 1; min-width: 0; }
+  .muted { color: var(--hint); font-size: 13px; }
+  .big { font-size: 18px; font-weight: 600; }
+  .hidden { display: none !important; }
+  .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  label.f { display: block; font-size: 13px; color: var(--hint); margin: 10px 2px 4px; }
+  input, select { width: 100%; padding: 11px 12px; font: inherit; color: var(--text);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px; outline: none; }
+  input:focus, select:focus { border-color: var(--accent); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; font: inherit;
+    font-weight: 600; background: var(--accent); color: var(--accent-text); cursor: pointer; margin-top: 12px; }
+  .btn.secondary { background: var(--soft); color: var(--accent); }
+  .btn.danger { background: transparent; color: var(--danger); }
+  .btn.small { display: inline-block; width: auto; padding: 8px 12px; margin: 0; font-size: 14px; }
+  .btn:disabled { opacity: .5; }
+
+  .search { position: sticky; top: 0; z-index: 4; background: var(--bg); padding: 4px 0 8px; }
+  .search input { background: var(--card); padding-left: 38px; }
+  .search .ico { position: absolute; left: 13px; top: 15px; color: var(--hint); pointer-events: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+  .chip { padding: 7px 12px; border-radius: 999px; background: var(--card); color: var(--text);
+    font-size: 14px; border: 1px solid var(--line); cursor: pointer; }
+  .chip.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .seg { display: flex; background: var(--card); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; padding: 9px 4px; border: 0; border-radius: 8px; background: transparent;
+    font: inherit; font-size: 14px; color: var(--text); cursor: pointer; }
+  .seg button.on { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    white-space: nowrap; }
+  .badge.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .badge.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .badge.no { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+  .badge.info { background: var(--soft); color: var(--accent); }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .kv:last-child { border-bottom: 0; }
+  .kv > span:first-child { color: var(--hint); }
+  .kv > span:last-child { text-align: right; }
+
+  .user { display: flex; gap: 12px; align-items: center; cursor: pointer; }
+  .avatar { flex: none; width: 42px; height: 42px; border-radius: 50%; background: var(--soft); color: var(--accent);
+    display: grid; place-items: center; font-weight: 700; }
+  .meta { display: flex; gap: 10px; margin-top: 3px; font-size: 13px; color: var(--hint); }
+  .back { border: 0; background: none; color: var(--accent); font: inherit; padding: 6px 4px; cursor: pointer; }
+
+  /* statistika */
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { background: var(--card); border-radius: var(--radius); padding: 12px 14px; }
+  .tile .label { font-size: 13px; color: var(--hint); }
+  .tile .value { font-size: 26px; font-weight: 700; line-height: 1.2; margin-top: 2px; }
+  .tile .sub { font-size: 13px; color: var(--hint); margin-top: 2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--text); margin-bottom: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart .axis { fill: var(--hint); font-size: 11px; }
+  .chart .grid { stroke: var(--line); stroke-width: 1; }
+  .tip { position: absolute; pointer-events: none; background: var(--text); color: var(--card); border-radius: 8px;
+    padding: 7px 9px; font-size: 12px; line-height: 1.45; white-space: nowrap; transform: translate(-50%, -100%);
+    box-shadow: 0 4px 14px rgba(0,0,0,.18); z-index: 3; }
+  .tip i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+  .hbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; margin: 8px 0; }
+  .hbar .track { grid-column: 1 / -1; height: 8px; }
+  .hbar .fill { height: 8px; border-radius: 0 4px 4px 0; background: var(--s-bar); min-width: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-weight: 600; color: var(--hint); font-size: 12px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px 4px; border-bottom: 1px solid var(--line); }
+  th.r, td.r { text-align: right; }
+  tr.click { cursor: pointer; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 14px; margin-top: 10px; }
+  .empty { text-align: center; color: var(--hint); padding: 26px 10px; }
+  .spinner { width: 26px; height: 26px; margin: 30px auto; border-radius: 50%; border: 3px solid var(--line);
+    border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--card);
+    border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+  nav button { flex: 1; border: 0; background: none; padding: 8px 2px 9px; color: var(--hint);
+    font: inherit; font-size: 12px; cursor: pointer; }
+  nav button .i { display: block; font-size: 22px; line-height: 1.2; filter: grayscale(1); opacity: .7; }
+  nav button.on { color: var(--accent); font-weight: 600; }
+  nav button.on .i { filter: none; opacity: 1; }
+  #toast { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: var(--text); color: var(--card); padding: 10px 16px; border-radius: 12px; font-size: 14px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: 90vw; }
+  #toast.show { opacity: .95; }
+</style>
+</head>
+<body>
+<main>
+  <!-- ===================== FOYDALANUVCHILAR ===================== -->
+  <section id="tab-users">
+    <h1>Foydalanuvchilar</h1>
+    <div class="search">
+      <span class="ico">🔍</span>
+      <input id="q" type="search" autocomplete="off"
+             placeholder="Ism, @username, ID, telefon, pasport, buyurtma">
+    </div>
+    <div class="chips" id="ufilter"></div>
+    <div class="muted" id="ucount" style="margin:0 4px 8px"></div>
+    <div id="ulist"><div class="spinner"></div></div>
+  </section>
+
+  <!-- ===================== FOYDALANUVCHI KARTASI ===================== -->
+  <section id="tab-user" class="hidden">
+    <button class="back" id="back">← Foydalanuvchilar</button>
+    <div id="udetail"></div>
+  </section>
+
+  <!-- ===================== STATISTIKA ===================== -->
+  <section id="tab-stats" class="hidden">
+    <h1>Statistika</h1>
+    <div class="seg" id="period">
+      <button data-p="1">Bugun</button>
+      <button data-p="7">7 kun</button>
+      <button data-p="30" class="on">30 kun</button>
+      <button data-p="0">Hammasi</button>
+    </div>
+    <div id="stats" style="margin-top:12px"><div class="spinner"></div></div>
+  </section>
+</main>
+
+<nav>
+  <button data-tab="users" class="on"><span class="i">👥</span>Foydalanuvchilar</button>
+  <button data-tab="stats"><span class="i">📊</span>Statistika</button>
+</nav>
+<div id="toast"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+tg?.ready(); tg?.expand();
+const applyTheme = () => { if (tg?.colorScheme) document.documentElement.dataset.theme = tg.colorScheme; };
+applyTheme(); tg?.onEvent?.("themeChanged", () => { applyTheme(); if (statsData) renderStats(); });
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = (n) => Number(n || 0).toLocaleString("ru-RU").replace(/\s|,/g, " ");
+const money = (n) => fmt(n) + " so'm";
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const haptic = () => tg?.HapticFeedback?.impactOccurred("light");
+function toast(msg) {
+  const el = $("toast"); el.textContent = msg; el.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 3000);
+}
+function confirmThen(msg, fn) { tg?.showConfirm ? tg.showConfirm(msg, ok => ok && fn()) : (confirm(msg) && fn()); }
+
+// Menyudagi tugmadan ochilganda Telegram initData bermaydi — havoladagi imzolangan kalit (?k=) ishlatiladi
+const ADMIN_KEY = new URLSearchParams(location.search).get("k") || "";
+async function api(path, opts = {}) {
+  const auth = tg?.initData ? { "X-Telegram-Init-Data": tg.initData } : { "X-Admin-Key": ADMIN_KEY };
+  const res = await fetch(path, {
+    method: opts.method || "GET",
+    headers: { ...auth, "X-Lang": "uz", "Content-Type": "application/json" },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Xato (${res.status})`);
+  return data;
+}
+async function run(btn, fn) {
+  if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = "Kuting..."; }
+  try { return await fn(); }
+  catch (e) { toast(e.message); tg?.HapticFeedback?.notificationOccurred("error"); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label; } }
+}
+
+// ---------- tablar ----------
+let current = "users";
+function showTab(name) {
+  current = name;
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === (name === "user" ? "users" : name)));
+  document.querySelectorAll("main > section").forEach(s => s.classList.toggle("hidden", s.id !== "tab-" + name));
+  window.scrollTo(0, 0);
+  if (name === "stats") loadStats();
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  haptic(); showTab(b.dataset.tab);
+  if (b.dataset.tab === "users") loadUsers();
+});
+
+// ==================== FOYDALANUVCHILAR ====================
+const STATUS = {
+  owner: ["info", "Siz"], allowed: ["ok", "Ruxsat berilgan"], pending: ["warn", "So'rov kutmoqda"],
+  denied: ["no", "Ruxsat yo'q"], new: ["info", "Yangi"],
+};
+const FILTERS = [["all", "Hammasi"], ["allowed", "Ruxsat berilgan"], ["pending", "So'rov"], ["denied", "Ruxsatsiz"]];
+let users = [], ufilter = "all";
+
+async function loadUsers() {
+  try {
+    users = (await api("/api/admin/users")).users;
+    renderUsers();
+  } catch (e) {
+    $("ulist").innerHTML = `<div class="card empty">⚠️ ${esc(e.message)}</div>`;
+  }
+}
+function initials(name) {
+  return (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+}
+function matches(u, q) {
+  // har bir so'z topilishi kerak; "@ali" va "+99890" ham ishlaydi; pasportdagi bo'sh joy e'tiborsiz
+  return q.toLowerCase().replace(/[@+]/g, " ").split(/\s+/).filter(Boolean)
+    .every(w => u.search.includes(w) || u.search.replace(/\s/g, "").includes(w));
+}
+function renderUsers() {
+  const counts = { all: users.length };
+  users.forEach(u => { const k = u.status === "owner" ? "allowed" : u.status; counts[k] = (counts[k] || 0) + 1; });
+  $("ufilter").innerHTML = FILTERS.map(([k, label]) =>
+    `<span class="chip ${k === ufilter ? "on" : ""}" data-f="${k}">${label} · ${counts[k] || 0}</span>`).join("");
+  $("ufilter").querySelectorAll("[data-f]").forEach(c => c.onclick = () => { ufilter = c.dataset.f; haptic(); renderUsers(); });
+  const q = $("q").value.trim();
+  const list = users.filter(u => (ufilter === "all" || u.status === ufilter || (ufilter === "allowed" && u.status === "owner"))
+    && (!q || matches(u, q)));
+  $("ucount").textContent = q ? `${list.length} ta topildi` : "";
+  $("ulist").innerHTML = list.length ? list.map(u => {
+    const [cls, label] = STATUS[u.status] || STATUS.new;
+    return `<div class="card user" data-uid="${u.id}">
+      <div class="avatar">${esc(initials(u.name))}</div>
+      <div class="grow">
+        <div class="row between"><b class="ellipsis">${esc(u.name || "—")}</b><span class="badge ${cls}">${label}</span></div>
+        <div class="muted ellipsis">${u.username ? "@" + esc(u.username) + " · " : ""}ID ${u.id}${u.phone ? " · +" + esc(u.phone) : ""}</div>
+        <div class="meta"><span title="Bronlar">🎫 ${u.bookings}</span><span title="Sotib olingan">✅ ${u.paid}</span>
+          <span title="Faol kuzatuvlar">🔔 ${u.monitors}</span><span title="Yo'lovchilar">👤 ${u.passengers.length}</span></div>
+      </div></div>`;
+  }).join("") : `<div class="card empty">${q ? "Hech narsa topilmadi" : "Foydalanuvchi yo'q"}</div>`;
+  $("ulist").querySelectorAll("[data-uid]").forEach(el => el.onclick = () => { haptic(); openUser(+el.dataset.uid); });
+}
+$("q").oninput = renderUsers;
+
+// ---------- foydalanuvchi kartasi ----------
+let openedUid = null;
+$("back").onclick = () => { showTab("users"); renderUsers(); };
+
+async function openUser(uid) {
+  openedUid = uid;
+  showTab("user");
+  $("udetail").innerHTML = `<div class="spinner"></div>`;
+  await run(null, async () => renderUser(await api("/api/admin/users/" + uid)));
+}
+function replaceUser(u) {
+  users = users.map(x => x.id === u.id ? u : x);
+}
+const BOOKING_STATE = {
+  paid: ["ok", "To'langan"], active: ["warn", "To'lov kutilmoqda"], cancelled: ["no", "Bekor qilingan"],
+  failed: ["no", "Amalga oshmagan"], expired: ["no", "Muddati o'tgan"],
+};
+const GENDER = { MALE: "Erkak", FEMALE: "Ayol" };
+const fmtDate = (iso) => { const [y, m, d] = String(iso).split("-"); return `${d}.${m}.${y}`; };
+const fmtTs = (ts) => ts ? new Date(ts * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+function renderUser({ user: u, bookings, monitors }) {
+  replaceUser(u);
+  const [cls, label] = STATUS[u.status] || STATUS.new;
+  const accessBtns = u.status === "owner" ? "" : u.status === "allowed"
+    ? `<button class="btn danger" data-access="0">🚫 Ruxsatni olish</button>`
+    : `<button class="btn" data-access="1">✅ Ruxsat berish</button>${u.status === "pending" ? `<button class="btn danger" data-access="0">❌ Rad etish</button>` : ""}`;
+  const passengers = u.passengers.map((p, i) => `
+    <div class="card">
+      <div class="row between"><b>${esc([p.last_name, p.first_name, p.middle_name].filter(Boolean).join(" "))}</b>
+        ${i === 0 ? `<span class="badge info">o'zi</span>` : ""}</div>
+      <div class="muted">${fmtDate(p.birthday)} · ${GENDER[p.gender] || ""} · ${p.doc_type === "УЛ" ? "ID-karta" : "Pasport"} ${esc(p.passport)}</div>
+      <div class="row" style="margin-top:8px; gap:8px">
+        <button class="btn small secondary" data-pedit="${i}">✏️ Tahrirlash</button>
+        <button class="btn small danger" data-pdel="${i}">🗑 O'chirish</button>
+      </div>
+      <div class="pform hidden" data-pform="${i}"></div>
+    </div>`).join("");
+  const bookingsHtml = bookings.slice(0, 20).map(b => {
+    const [c, l] = BOOKING_STATE[b.state] || ["info", b.state];
+    return `<div class="card">
+      <div class="row between"><b>${esc(b.from_name)} → ${esc(b.to_name)}</b><span class="badge ${c}">${l}</span></div>
+      <div class="muted">${esc(b.departure)} · poyezd ${esc(b.train_number)} · vagon ${esc(b.car_number)}, joy ${esc((b.seats || []).join(", "))}</div>
+      <div class="muted">${(b.passengers || []).map(esc).join(", ")}</div>
+      <div class="row between" style="margin-top:4px"><span class="muted num">${esc(b.order_id)}</span><b class="num">≈ ${money(b.price)}</b></div>
+    </div>`;
+  }).join("");
+  const MON = (m) => m.order_id ? ["ok", "bron qilindi"] : m.active ? ["warn", `kuzatilmoqda · ${m.checks}`] : ["no", "to'xtagan"];
+  const monitorsHtml = monitors.map(m => {
+    const [c, l] = MON(m);
+    return `<div class="card"><div class="row between"><b>${esc(m.from_name)} → ${esc(m.to_name)}</b><span class="badge ${c}">${l}</span></div>
+      <div class="muted">${esc(m.departure)} · poyezd ${esc(m.train_number)} · ${m.passengers} kishi · ${esc(m.categories_uz)}</div></div>`;
+  }).join("");
+
+  $("udetail").innerHTML = `
+    <div class="card">
+      <div class="row"><div class="avatar">${esc(initials(u.name))}</div>
+        <div class="grow"><div class="big ellipsis">${esc(u.name || "—")}</div>
+          <div class="muted">${u.custom_name && u.tg_name ? "Telegram: " + esc(u.tg_name) : ""}</div></div>
+        <span class="badge ${cls}">${label}</span></div>
+      <div style="margin-top:10px">
+        <div class="kv"><span>Username</span><span>${u.username ? "@" + esc(u.username) : "—"}</span></div>
+        <div class="kv"><span>Telegram ID</span><span class="num">${u.id}</span></div>
+        <div class="kv"><span>Telefon</span><span>${u.phone ? "+" + esc(u.phone) : "—"}</span></div>
+        <div class="kv"><span>Bronlar / sotib olingan</span><span class="num">${u.bookings} / ${u.paid}</span></div>
+        <div class="kv"><span>Faol kuzatuvlar</span><span class="num">${u.monitors}</span></div>
+        ${u.since ? `<div class="kv"><span>So'rov / ruxsat sanasi</span><span>${fmtTs(u.since)}</span></div>` : ""}
+      </div>
+      ${accessBtns}
+    </div>
+
+    <h2>Ma'lumotlarni o'zgartirish</h2>
+    <div class="card">
+      <label class="f">Ism (botda va bronlarda ko'rinadi)</label>
+      <input id="e-name" value="${esc(u.custom_name ? u.name : "")}" placeholder="${esc(u.tg_name || "Ism")}">
+      <label class="f">Telefon</label>
+      <input id="e-phone" type="tel" value="${u.phone ? "+" + esc(u.phone) : ""}" placeholder="+998901234567">
+      <button class="btn" id="e-save">Saqlash</button>
+    </div>
+
+    <div class="row between"><h2>Yo'lovchilar (${u.passengers.length})</h2>
+      <button class="btn small secondary" id="p-add">➕ Qo'shish</button></div>
+    <div class="card hidden" id="p-new"></div>
+    ${passengers || `<div class="card empty">Yo'lovchi yo'q</div>`}
+
+    <h2>Bronlar (${bookings.length})</h2>
+    ${bookingsHtml || `<div class="card empty">Bron yo'q</div>`}
+
+    <h2>Kuzatuvlar (${monitors.length})</h2>
+    ${monitorsHtml || `<div class="card empty">Kuzatuv yo'q</div>`}`;
+
+  $("udetail").querySelectorAll("[data-access]").forEach(b => b.onclick = () => {
+    const grant = b.dataset.access === "1";
+    const go = () => run(b, async () => {
+      await api(`/api/admin/users/${u.id}/access`, { method: "POST", body: { grant } });
+      tg?.HapticFeedback?.notificationOccurred("success");
+      toast(grant ? "Ruxsat berildi" : "Ruxsat olindi"); openUser(u.id);
+    });
+    grant ? go() : confirmThen(`${u.name} — ruxsatini olasizmi? Faol kuzatuvlari to'xtatiladi.`, go);
+  });
+  $("e-save").onclick = () => run($("e-save"), async () => {
+    const res = await api(`/api/admin/users/${u.id}`, { method: "POST", body: { name: $("e-name").value, phone: $("e-phone").value } });
+    replaceUser(res.user); haptic(); toast("Saqlandi"); openUser(u.id);
+  });
+  $("p-add").onclick = () => { const box = $("p-new"); box.classList.toggle("hidden"); passengerForm(box, u.id, null, {}); };
+  $("udetail").querySelectorAll("[data-pedit]").forEach(b => b.onclick = () => {
+    const box = $("udetail").querySelector(`[data-pform="${b.dataset.pedit}"]`);
+    box.classList.toggle("hidden");
+    passengerForm(box, u.id, +b.dataset.pedit, u.passengers[+b.dataset.pedit]);
+  });
+  $("udetail").querySelectorAll("[data-pdel]").forEach(b => b.onclick = () => {
+    const p = u.passengers[+b.dataset.pdel];
+    confirmThen(`${p.last_name} ${p.first_name} — ro'yxatdan o'chirilsinmi?`, () => run(b, async () => {
+      await api(`/api/admin/users/${u.id}/passengers/${b.dataset.pdel}`, { method: "DELETE" });
+      toast("O'chirildi"); openUser(u.id);
+    }));
+  });
+}
+
+function passengerForm(box, uid, index, p) {
+  box.innerHTML = `
+    <div class="grid2">
+      <div><label class="f">Familiya</label><input data-k="last_name" value="${esc(p.last_name)}"></div>
+      <div><label class="f">Ism</label><input data-k="first_name" value="${esc(p.first_name)}"></div>
+    </div>
+    <label class="f">Otasining ismi</label><input data-k="middle_name" value="${esc(p.middle_name)}">
+    <div class="grid2">
+      <div><label class="f">Tug'ilgan sana</label><input data-k="birthday" type="date" value="${esc(p.birthday)}"></div>
+      <div><label class="f">Jinsi</label><select data-k="gender">
+        <option value="MALE" ${p.gender !== "FEMALE" ? "selected" : ""}>Erkak</option>
+        <option value="FEMALE" ${p.gender === "FEMALE" ? "selected" : ""}>Ayol</option></select></div>
+    </div>
+    <div class="grid2">
+      <div><label class="f">Hujjat</label><select data-k="doc_type">
+        <option value="">Seriyadan aniqlash</option>
+        <option value="ПУ" ${p.doc_type === "ПУ" ? "selected" : ""}>Pasport</option>
+        <option value="УЛ" ${p.doc_type === "УЛ" ? "selected" : ""}>ID-karta</option></select></div>
+      <div><label class="f">Seriya va raqam</label><input data-k="passport" value="${esc(p.passport)}" placeholder="AA1234567"></div>
+    </div>
+    <button class="btn" data-save>Saqlash</button>`;
+  box.querySelector("[data-save]").onclick = (ev) => run(ev.target, async () => {
+    const body = { index };
+    box.querySelectorAll("[data-k]").forEach(el => body[el.dataset.k] = el.value);
+    await api(`/api/admin/users/${uid}/passengers`, { method: "POST", body });
+    tg?.HapticFeedback?.notificationOccurred("success"); toast("Saqlandi"); openUser(uid);
+  });
+}
+
+// ==================== STATISTIKA ====================
+let statsData = null, period = 30;
+const SERIES = [
+  { key: "paid", label: "Sotib olingan", color: "--s-paid" },
+  { key: "active", label: "To'lov kutilmoqda", color: "--s-active" },
+  { key: "lost", label: "Bekor / muddati o'tgan", color: "--s-lost" },
+];
+const seriesOf = (state) => state === "paid" ? "paid" : state === "active" ? "active" : "lost";
+
+$("period").querySelectorAll("button").forEach(b => b.onclick = () => {
+  period = +b.dataset.p; haptic();
+  $("period").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  renderStats();
+});
+
+async function loadStats() {
+  if (!statsData) $("stats").innerHTML = `<div class="spinner"></div>`;
+  await run(null, async () => { statsData = await api("/api/admin/stats"); renderStats(); });
+}
+
+function periodStart(now) {
+  if (!period) return 0;
+  const d = new Date(now * 1000); d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (period - 1));
+  return d.getTime() / 1000;
+}
+
+// Vaqt bo'laklari: bugun — soatlar, 60 kungacha — kunlar, undan ko'p — haftalar
+function buckets(rows, start, now) {
+  const first = start || Math.min(now, ...rows.map(r => r.created || now));
+  const unit = period === 1 ? "hour" : (now - first) / 86400 > 60 ? "week" : "day";
+  const floor = (ts) => {
+    const d = new Date(ts * 1000);
+    if (unit === "hour") d.setMinutes(0, 0, 0);
+    else { d.setHours(0, 0, 0, 0); if (unit === "week") d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); }
+    return d.getTime() / 1000;
+  };
+  const step = (ts) => { const d = new Date(ts * 1000);
+    if (unit === "hour") d.setHours(d.getHours() + 1); else d.setDate(d.getDate() + (unit === "week" ? 7 : 1));
+    return d.getTime() / 1000; };
+  const list = [];
+  for (let t = floor(first); t <= now; t = step(t)) list.push({ t, paid: 0, active: 0, lost: 0 });
+  const index = new Map(list.map((b, i) => [b.t, i]));
+  rows.forEach(r => { const i = index.get(floor(r.created)); if (i !== undefined) list[i][seriesOf(r.state)]++; });
+  const label = (t) => { const d = new Date(t * 1000);
+    return unit === "hour" ? `${String(d.getHours()).padStart(2, "0")}:00`
+      : `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  return { list: list.map(b => ({ ...b, label: label(b.t), total: b.paid + b.active + b.lost })), unit };
+}
+
+function renderStats() {
+  if (!statsData) return;
+  const { now } = statsData;
+  const start = periodStart(now);
+  const rows = statsData.bookings.filter(b => (b.created || 0) >= start);
+  const mons = statsData.monitors.filter(m => (m.created || 0) >= start);
+  const by = (state) => rows.filter(r => r.state === state);
+  const paid = by("paid"), active = by("active");
+  const lost = rows.filter(r => seriesOf(r.state) === "lost");
+  const sum = (list) => list.reduce((s, r) => s + (r.price || 0), 0);
+  const people = (list) => list.reduce((s, r) => s + (r.passengers || 0), 0);
+  const activeMonsNow = statsData.monitors.filter(m => m.state === "active").length;
+  const tile = (label, value, sub) => `<div class="tile"><div class="label">${label}</div>
+    <div class="value num">${value}</div><div class="sub">${sub}</div></div>`;
+
+  let html = `<div class="tiles">
+    ${tile("🎫 Bron qilingan", fmt(rows.length), `${fmt(people(rows))} yo'lovchi`)}
+    ${tile("✅ Sotib olingan", fmt(paid.length), `≈ ${money(sum(paid))}`)}
+    ${tile("⏳ To'lov kutilmoqda", fmt(active.length), `≈ ${money(sum(active))}`)}
+    ${tile("❌ Bekor / muddati o'tgan", fmt(lost.length), rows.length ? `${Math.round(lost.length * 100 / rows.length)}% bronlardan` : "—")}
+    ${tile("🔔 Kuzatuvga qo'yilgan", fmt(mons.length), `hozir faol: ${fmt(activeMonsNow)}`)}
+    ${tile("🎯 Kuzatuv orqali bron", fmt(mons.filter(m => m.state === "booked").length),
+           `to'xtagan: ${fmt(mons.filter(m => m.state === "stopped").length)}`)}
+  </div>`;
+
+  if (!rows.length) {
+    html += `<div class="card empty" style="margin-top:10px">Bu davrda bron yo'q</div>`;
+  } else {
+    const { list, unit } = buckets(rows, start, now);
+    const unitName = { hour: "soatlar", day: "kunlar", week: "haftalar" }[unit];
+    html += `<h2>Bronlar — ${unitName} bo'yicha</h2><div class="card">
+      <div class="legend">${SERIES.map(s => `<span><i style="background:var(${s.color})"></i>${s.label}</span>`).join("")}</div>
+      <div class="chart" id="chart"></div>
+      <details><summary>Jadval ko'rinishi</summary><table style="margin-top:8px">
+        <tr><th>Davr</th>${SERIES.map(s => `<th class="r">${s.label}</th>`).join("")}<th class="r">Jami</th></tr>
+        ${list.filter(b => b.total).map(b => `<tr><td>${b.label}</td><td class="r num">${b.paid}</td><td class="r num">${b.active}</td>
+          <td class="r num">${b.lost}</td><td class="r num"><b>${b.total}</b></td></tr>`).join("")}
+      </table></details></div>`;
+
+    const routes = {};
+    rows.forEach(r => { const x = routes[r.route] ||= { n: 0, paid: 0 }; x.n++; if (r.state === "paid") x.paid++; });
+    const top = Object.entries(routes).sort((a, b) => b[1].n - a[1].n).slice(0, 6);
+    const max = top[0][1].n;
+    html += `<h2>Ko'p bron qilingan yo'nalishlar</h2><div class="card">${top.map(([route, x]) => `
+      <div class="hbar"><span class="ellipsis">${esc(route)}</span>
+        <span class="num"><b>${x.n}</b> <span class="muted">· ${x.paid} sotib olingan</span></span>
+        <div class="track"><div class="fill" style="width:${(x.n / max) * 100}%"></div></div></div>`).join("")}</div>`;
+
+    const perUser = {};
+    rows.forEach(r => { const x = perUser[r.user_id] ||= { name: r.user, n: 0, paid: 0, sum: 0, mons: 0 };
+      x.n++; if (r.state === "paid") { x.paid++; x.sum += r.price || 0; } });
+    mons.forEach(m => { (perUser[m.user_id] ||= { name: m.user, n: 0, paid: 0, sum: 0, mons: 0 }).mons++; });
+    const urows = Object.entries(perUser).sort((a, b) => b[1].n - a[1].n || b[1].mons - a[1].mons);
+    html += `<h2>Foydalanuvchilar bo'yicha</h2><div class="card" style="padding:8px 10px"><table>
+      <tr><th>Foydalanuvchi</th><th class="r">Bron</th><th class="r">Sotib ol.</th><th class="r">Summa</th><th class="r">🔔</th></tr>
+      ${urows.map(([uid, x]) => `<tr class="click" data-uid="${uid}"><td class="ellipsis" style="max-width:130px">${esc(x.name)}</td>
+        <td class="r num">${x.n}</td><td class="r num">${x.paid}</td><td class="r num">${fmt(x.sum)}</td><td class="r num">${x.mons}</td></tr>`).join("")}
+    </table></div>`;
+    $("stats").innerHTML = html;
+    drawBars($("chart"), list);
+    $("stats").querySelectorAll("tr[data-uid]").forEach(tr => tr.onclick = () => { haptic(); openUser(+tr.dataset.uid); });
+    return;
+  }
+  $("stats").innerHTML = html;
+}
+
+// Ustunli grafik (stacked): to'langan pastda; segmentlar orasida 2px oraliq, yuqori uchi 4px yumaloq
+function drawBars(box, list) {
+  const W = Math.max(box.clientWidth, 280), H = 180, pad = { l: 26, r: 4, t: 8, b: 22 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const max = Math.max(1, ...list.map(b => b.total));
+  const nice = max <= 4 ? max : Math.ceil(max / 4) * 4;
+  const slot = iw / list.length, bw = Math.max(2, Math.min(22, slot * 0.68));
+  const y = (v) => pad.t + ih - (v / nice) * ih;
+  const ticks = nice <= 4 ? [...Array(nice + 1).keys()] : [0, nice / 4, nice / 2, (nice * 3) / 4, nice];
+  const every = Math.ceil(list.length / Math.floor(iw / 42));
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bronlar grafigi">`;
+  ticks.forEach(t => { svg += `<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${y(t)}" y2="${y(t)}"/>
+    <text class="axis" x="${pad.l - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`; });
+  list.forEach((b, i) => {
+    const x = pad.l + i * slot + (slot - bw) / 2;
+    let top = pad.t + ih;
+    const segs = SERIES.filter(s => b[s.key]);
+    segs.forEach((s, k) => {
+      const h = (b[s.key] / nice) * ih - (k < segs.length - 1 ? 2 : 0);
+      const yTop = top - (b[s.key] / nice) * ih;
+      const last = k === segs.length - 1, r = Math.min(4, bw / 2, h);
+      const d = last
+        ? `M${x},${top} V${yTop + r} Q${x},${yTop} ${x + r},${yTop} H${x + bw - r} Q${x + bw},${yTop} ${x + bw},${yTop + r} V${top} Z`
+        : `M${x},${top} V${top - h} H${x + bw} V${top} Z`;
+      svg += `<path d="${d}" fill="var(${s.color})"/>`;
+      top = yTop;
+    });
+    if (i % every === 0) svg += `<text class="axis" x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${b.label}</text>`;
+    svg += `<rect data-i="${i}" x="${pad.l + i * slot}" y="${pad.t}" width="${slot}" height="${ih}" fill="transparent"/>`;
+  });
+  box.innerHTML = svg + `</svg><div class="tip hidden"></div>`;
+  const tip = box.querySelector(".tip");
+  const show = (el) => {
+    const b = list[+el.dataset.i];
+    const sx = box.clientWidth / W;
+    tip.innerHTML = `<b>${b.label}</b> — jami ${b.total}<br>` +
+      SERIES.map(s => `<i style="background:var(${s.color})"></i>${s.label}: ${b[s.key]}`).join("<br>");
+    tip.style.left = `${Math.min(Math.max((+el.getAttribute("x") + slot / 2) * sx, 80), box.clientWidth - 80)}px`;
+    tip.style.top = `${y(b.total) * sx - 6}px`;
+    tip.classList.remove("hidden");
+  };
+  box.querySelectorAll("rect[data-i]").forEach(el => {
+    el.addEventListener("pointerenter", () => show(el));
+    el.addEventListener("pointerdown", () => show(el));
+  });
+  box.addEventListener("pointerleave", () => tip.classList.add("hidden"));
+}
+window.addEventListener("resize", () => { if (current === "stats" && statsData) renderStats(); });
+
+// ---------- ishga tushirish ----------
+(async function init() {
+  if (!tg?.initData && !ADMIN_KEY) {
+    document.querySelector("main").innerHTML = `<div class="card empty" style="margin-top:40px">🤖 Admin panelni bot orqali oching.</div>`;
+    return;
+  }
+  await loadUsers();
+})();
+</script>
+</body>
+</html>

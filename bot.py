@@ -8,6 +8,7 @@ from datetime import datetime, date, timedelta
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -22,7 +23,7 @@ import site_proxy
 import webapp
 from access import AccessStore
 from car_render import CarRenderer
-from timers import BookingTimers
+from timers import BookingTimers, is_paid
 from monitor import Monitor, MonitorManager
 from passengers import GENDER_LABEL, doc_type_label, guess_doc_type, parse_passenger_text
 from categories import describe, train_categories
@@ -54,6 +55,7 @@ MENU_MONITORS = "🔔 Kuzatuvlarim"
 MENU_STATUS = "ℹ️ Holat"
 MENU_LOGIN = "🔑 Saytga kirish"
 MENU_USERS = "👥 Foydalanuvchilar"
+MENU_ADMIN = "🛠 Admin panel"
 MENU_CANCEL = "❌ Bekor qilish"
 
 # (tugma matni, saytdagi stansiya nomi)
@@ -72,6 +74,13 @@ class Reg(StatesGroup):
 class Login(StatesGroup):
     phone = State()
     password = State()
+
+
+class AdminEdit(StatesGroup):
+    """Bot egasi admin panelda foydalanuvchi ma'lumotini o'zgartiradi (data: uid, idx)."""
+    name = State()
+    phone = State()
+    passenger = State()
 
 
 class Booking(StatesGroup):
@@ -98,8 +107,12 @@ def main_menu(user_id: int) -> ReplyKeyboardMarkup:
     kb.button(text=MENU_MONITORS)
     kb.button(text=MENU_STATUS)
     if user_id == OWNER_ID:
+        if WEBAPP_URL:  # bosilganda xabarsiz, darhol admin ilovasi ochiladi (kalit — webapp.admin_key)
+            url = f"{WEBAPP_URL.rstrip('/')}/admin?k={webapp.admin_key(BOT_TOKEN, OWNER_ID)}"
+            kb.button(text=MENU_ADMIN, web_app=WebAppInfo(url=url))
+        else:
+            kb.button(text=MENU_ADMIN)
         kb.button(text=MENU_LOGIN)
-        kb.button(text=MENU_USERS)
     kb.button(text=MENU_CANCEL)
     kb.adjust(*([1] if WEBAPP_URL else []), 1, 2, 2, 2)
     return kb.as_markup(resize_keyboard=True)
@@ -202,38 +215,42 @@ async def not_allowed_call(call: CallbackQuery):
     await call.answer("Ruxsat yo'q", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("acc:"), F.from_user.id == OWNER_ID)
-async def access_decision(call: CallbackQuery):
-    _, action, uid = call.data.split(":")
-    user_id = int(uid)
-    if action == "ok":
+async def apply_access(bot: Bot, user_id: int, grant: bool) -> str:
+    """Ruxsat beradi yoki oladi (kuzatuvlari to'xtatiladi) va foydalanuvchiga xabar beradi. Natija fe'li."""
+    if grant:
         access.grant(user_id)
-        await call.message.edit_text(f"✅ Ruxsat berildi: <b>{html.escape(access.label(user_id))}</b> "
-                                     f"(ID <code>{user_id}</code>)")
-        await call.answer("Ruxsat berildi")
         try:
             if WEBAPP_URL:
-                await call.bot.set_chat_menu_button(
+                await bot.set_chat_menu_button(
                     chat_id=user_id, menu_button=MenuButtonWebApp(text="Ilova", web_app=WebAppInfo(url=WEBAPP_URL)))
-            await call.bot.send_message(user_id, "✅ Bot egasi sizga ruxsat berdi! Boshlash uchun /start ni bosing.")
+            await bot.send_message(user_id, "✅ Bot egasi sizga ruxsat berdi! Boshlash uchun /start ni bosing.")
         except Exception:
             logging.warning("Foydalanuvchiga xabar yuborilmadi: %s", user_id)
-        return
-    if user_id == OWNER_ID:
-        await call.answer("O'zingizning ruxsatingizni olib bo'lmaydi", show_alert=True)
-        return
+        return "Ruxsat berildi"
     was_allowed = user_id in ALLOWED_IDS
     access.deny(user_id)
     for m in [m for m in monitors.monitors.values() if m.chat_id == user_id]:
         monitors.remove(m.id)  # ruxsati olinganning kuzatuvlari to'xtatiladi
-    verb = "Ruxsat olib qo'yildi" if was_allowed else "Rad etildi"
-    await call.message.edit_text(f"🚫 {verb}: <b>{html.escape(access.label(user_id))}</b> (ID <code>{user_id}</code>)")
-    await call.answer(verb)
     try:
-        await call.bot.send_message(user_id, "Sizga bu botdan foydalanishga ruxsat berilmagan.",
-                                    reply_markup=ReplyKeyboardRemove())
+        await bot.send_message(user_id, "Sizga bu botdan foydalanishga ruxsat berilmagan.",
+                               reply_markup=ReplyKeyboardRemove())
     except Exception:
         logging.warning("Foydalanuvchiga xabar yuborilmadi: %s", user_id)
+    return "Ruxsat olib qo'yildi" if was_allowed else "Rad etildi"
+
+
+@router.callback_query(F.data.startswith("acc:"), F.from_user.id == OWNER_ID)
+async def access_decision(call: CallbackQuery):
+    """Yangi foydalanuvchi so'rovi xabaridagi tugmalar."""
+    _, action, uid = call.data.split(":")
+    user_id = int(uid)
+    if user_id == OWNER_ID:
+        await call.answer("O'zingizning ruxsatingizni olib bo'lmaydi", show_alert=True)
+        return
+    verb = await apply_access(call.bot, user_id, action == "ok")
+    icon = "✅" if action == "ok" else "🚫"
+    await call.message.edit_text(f"{icon} {verb}: <b>{html.escape(access.label(user_id))}</b> (ID <code>{user_id}</code>)")
+    await call.answer(verb)
 
 
 # ---------- 1-qadam: telefon raqam ----------
@@ -318,30 +335,256 @@ async def open_app(message: Message):
     await message.answer("Ilovani ochish uchun tugmani bosing 👇", reply_markup=kb.as_markup())
 
 
-def user_line(user_id: int) -> str:
-    phone = users.get(user_id).get("phone")
-    return (f"<b>{html.escape(access.label(user_id))}</b>\nID <code>{user_id}</code>"
-            + (f", +{phone}" if phone else ""))
+# ---------- admin panel (faqat bot egasi): foydalanuvchilar, saytga kirish, ma'lumotlarni tahrirlash ----------
+
+def user_name(uid: int) -> str:
+    return users.display_name(uid) or access.info(uid).get("name") or "—"
+
+
+def admin_panel():
+    """Admin panel: ilova (foydalanuvchilar, qidiruv, statistika) va botdagi tezkor tugmalar."""
+    kb = InlineKeyboardBuilder()
+    if WEBAPP_URL:  # pastki menyu tugmasidan ochilgan ilovaga Telegram foydalanuvchi ma'lumotini bermaydi
+        kb.button(text="🛠 Admin panelni ochish", web_app=WebAppInfo(url=WEBAPP_URL.rstrip("/") + "/admin"))
+    kb.button(text=MENU_USERS, callback_data="adm:users")
+    kb.button(text=MENU_LOGIN, callback_data="adm:login")
+    kb.adjust(*([1] if WEBAPP_URL else []), 2)
+    return (f"🛠 <b>Admin panel</b>\n\nSayt: {html.escape(session.status())}\n"
+            f"Foydalanuvchilar: {len(ALLOWED_IDS - {OWNER_ID})} ta ruxsat berilgan"), kb.as_markup()
+
+
+def users_list():
+    """Barcha foydalanuvchilar bitta xabarda (raqamlangan ro'yxat): tahrirlash va ruxsat tugmalari bilan."""
+    groups = [("⏳ So'rov kutmoqda", access.listed("pending")),
+              ("✅ Ruxsat berilgan", sorted(ALLOWED_IDS - {OWNER_ID})),
+              ("🚫 Ruxsat yo'q", access.listed("denied"))]
+    total = sum(len(ids) for _, ids in groups)
+    kb = InlineKeyboardBuilder()
+    if not total:
+        kb.button(text="⬅️ Admin panel", callback_data="adm:home")
+        return ("Hozircha botdan faqat siz foydalanasiz.\n"
+                "Boshqa odam botga yozsa, sizga <b>✅ Ruxsat berish</b> tugmasi bilan so'rov keladi."), kb.as_markup()
+    lines, n, sizes = [f"👥 <b>Foydalanuvchilar ({total})</b>"], 0, []
+    for title, ids in groups:
+        if not ids:
+            continue
+        lines.append(f"\n<b>{title}:</b>")
+        for uid in ids:
+            n += 1
+            info = access.info(uid)
+            name = user_name(uid)
+            username = f"@{info['username']}" if info.get("username") else "username yo'q"
+            phone = users.get(uid).get("phone")
+            lines.append(f"{n}. <b>{html.escape(name, quote=False)}</b> — {html.escape(username, quote=False)}\n"
+                         f"    ID <code>{uid}</code>" + (f", +{phone}" if phone else ""))
+            if title.startswith("⏳"):
+                kb.button(text=f"✅ {n}. {name[:18]}", callback_data=f"acl:ok:{uid}")
+                kb.button(text=f"❌ {n}", callback_data=f"acl:no:{uid}")
+            else:
+                kb.button(text=f"✏️ {n}. {name[:18]}", callback_data=f"adu:{uid}")
+                kb.button(text=f"🚫 {n}" if title.startswith("✅") else f"✅ {n}",
+                          callback_data=f"acl:{'no' if title.startswith('✅') else 'ok'}:{uid}")
+            sizes.append(2)
+    kb.button(text="⬅️ Admin panel", callback_data="adm:home")
+    kb.adjust(*sizes, 1)
+    lines.append("\n✏️ — ma'lumotlarini ko'rish va o'zgartirish, 🚫 / ✅ — ruxsatni olish / berish")
+    return "\n".join(lines), kb.as_markup()
+
+
+def passenger_line(p: dict) -> str:
+    born = date.fromisoformat(p["birthday"])
+    doc = doc_type_label(p.get("doc_type") or guess_doc_type(p["passport"]))
+    return (f"{html.escape(Passenger(**p).full_name)} — {born:%d.%m.%Y}, {GENDER_LABEL[p['gender']]}, "
+            f"{doc} {p['passport']}")
+
+
+def user_card(uid: int):
+    """Bitta foydalanuvchi: ma'lumotlari va ularni o'zgartirish tugmalari."""
+    info, user = access.info(uid), users.get(uid)
+    status = {"allowed": "✅ ruxsat berilgan", "pending": "⏳ so'rov kutmoqda",
+              "denied": "🚫 ruxsat yo'q"}.get(access.status(uid), "—")
+    saved = users.passengers(uid)
+    plist = "\n".join(f"{i + 1}. {passenger_line(p)}" + (" <i>(o'zi)</i>" if i == 0 else "")
+                      for i, p in enumerate(saved)) or "—"
+    text = (f"👤 <b>{html.escape(user_name(uid), quote=False)}</b>"
+            + (f" — @{html.escape(info['username'])}" if info.get("username") else "") + "\n"
+            f"ID <code>{uid}</code>\n"
+            f"Telefon: {'+' + user['phone'] if user.get('phone') else '—'}\n"
+            f"Holat: {status}\n"
+            f"Bronlar: {len(user.get('bookings', []))} ta\n\n"
+            f"<b>Yo'lovchilar:</b>\n{plist}")
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Ism", callback_data=f"aun:{uid}")
+    kb.button(text="📞 Telefon", callback_data=f"auf:{uid}")
+    for i, p in enumerate(saved):
+        kb.button(text=f"👤 {i + 1}. {Passenger(**p).full_name[:28]}", callback_data=f"adp:{uid}:{i}")
+    kb.button(text="➕ Yo'lovchi qo'shish", callback_data=f"adn:{uid}")
+    allowed = uid in ALLOWED_IDS
+    kb.button(text="🚫 Ruxsatni olish" if allowed else "✅ Ruxsat berish",
+              callback_data=f"acu:{'no' if allowed else 'ok'}:{uid}")
+    kb.button(text="⬅️ Ro'yxatga", callback_data="adm:users")
+    kb.adjust(2, *([1] * len(saved)), 1, 2)
+    return text, kb.as_markup()
+
+
+async def show_user_card(message: Message, uid: int, edit: bool = False):
+    text, markup = user_card(uid)
+    if edit:
+        await message.edit_text(text, reply_markup=markup)
+    else:
+        await message.answer(text, reply_markup=markup)
+
+
+@router.message(F.text == MENU_ADMIN, F.from_user.id == OWNER_ID)
+async def admin_home(message: Message, state: FSMContext):
+    await state.clear()
+    text, markup = admin_panel()
+    await message.answer(text, reply_markup=markup)
 
 
 @router.message(F.text == MENU_USERS, F.from_user.id == OWNER_ID)
 async def list_users(message: Message):
-    allowed = sorted(ALLOWED_IDS - {OWNER_ID})
-    pending, denied = access.listed("pending"), access.listed("denied")
-    if not (allowed or pending or denied):
-        await message.answer("Hozircha botdan faqat siz foydalanasiz.\n"
-                             "Boshqa odam botga yozsa, sizga <b>✅ Ruxsat berish</b> tugmasi bilan so'rov keladi.")
+    text, markup = users_list()
+    await message.answer(text, reply_markup=markup)
+
+
+@router.callback_query(F.data.startswith("adm:"), F.from_user.id == OWNER_ID)
+async def admin_nav(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.answer()
+    action = call.data.split(":", 1)[1]
+    if action == "login":
+        await ask_site_login(call.message, state)
         return
-    for uid in pending:
-        await message.answer(f"⏳ So'rov kutmoqda:\n{user_line(uid)}", reply_markup=access_keyboard(uid))
-    for uid in allowed:
-        kb = InlineKeyboardBuilder()
-        kb.button(text="🚫 Ruxsatni olish", callback_data=f"acc:no:{uid}")
-        await message.answer(f"✅ Ruxsat berilgan:\n{user_line(uid)}", reply_markup=kb.as_markup())
-    for uid in denied:
-        kb = InlineKeyboardBuilder()
-        kb.button(text="✅ Ruxsat berish", callback_data=f"acc:ok:{uid}")
-        await message.answer(f"🚫 Ruxsat yo'q:\n{user_line(uid)}", reply_markup=kb.as_markup())
+    text, markup = admin_panel() if action == "home" else users_list()
+    await call.message.edit_text(text, reply_markup=markup)
+
+
+@router.callback_query(F.data.startswith("acl:"), F.from_user.id == OWNER_ID)
+async def list_users_decision(call: CallbackQuery):
+    """Ro'yxatdagi tugma: ruxsat beradi / oladi va o'sha xabardagi ro'yxatni yangilaydi."""
+    _, action, uid = call.data.split(":")
+    if int(uid) == OWNER_ID:
+        await call.answer("O'zingizning ruxsatingizni olib bo'lmaydi", show_alert=True)
+        return
+    verb = await apply_access(call.bot, int(uid), action == "ok")
+    await call.answer(f"{verb}: {access.label(int(uid))}")
+    text, markup = users_list()
+    await call.message.edit_text(text, reply_markup=markup)
+
+
+@router.callback_query(F.data.startswith("acu:"), F.from_user.id == OWNER_ID)
+async def user_card_access(call: CallbackQuery):
+    """Foydalanuvchi kartasidagi ruxsat tugmasi."""
+    _, action, uid = call.data.split(":")
+    if int(uid) == OWNER_ID:
+        await call.answer("O'zingizning ruxsatingizni olib bo'lmaydi", show_alert=True)
+        return
+    verb = await apply_access(call.bot, int(uid), action == "ok")
+    await call.answer(verb)
+    await show_user_card(call.message, int(uid), edit=True)
+
+
+@router.callback_query(F.data.startswith("adu:"), F.from_user.id == OWNER_ID)
+async def admin_user(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.answer()
+    await show_user_card(call.message, int(call.data.split(":")[1]), edit=True)
+
+
+@router.callback_query(F.data.startswith("adp:"), F.from_user.id == OWNER_ID)
+async def admin_passenger(call: CallbackQuery):
+    _, uid, i = call.data.split(":")
+    saved = users.passengers(int(uid))
+    if int(i) >= len(saved):
+        await call.answer("Yo'lovchi topilmadi", show_alert=True)
+        return
+    await call.answer()
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ O'zgartirish", callback_data=f"ape:{uid}:{i}")
+    kb.button(text="🗑 O'chirish", callback_data=f"apd:{uid}:{i}")
+    kb.button(text="⬅️ Orqaga", callback_data=f"adu:{uid}")
+    kb.adjust(2, 1)
+    who = " (foydalanuvchining o'zi)" if i == "0" else ""
+    await call.message.edit_text(f"👤 <b>{html.escape(user_name(int(uid)), quote=False)}</b> — "
+                                 f"{int(i) + 1}-yo'lovchi{who}:\n\n{passenger_card(saved[int(i)])}",
+                                 reply_markup=kb.as_markup())
+
+
+@router.callback_query(F.data.startswith("apd:"), F.from_user.id == OWNER_ID)
+async def admin_passenger_delete(call: CallbackQuery):
+    _, uid, i = call.data.split(":")
+    saved = users.passengers(int(uid))
+    if int(i) < len(saved):
+        removed = users.remove_passenger(int(uid), saved[int(i)]["passport"])
+        await call.answer(f"O'chirildi: {Passenger(**removed).full_name}")
+    await show_user_card(call.message, int(uid), edit=True)
+
+
+@router.callback_query(F.data.regexp(r"^(aun|auf|ape|adn):"), F.from_user.id == OWNER_ID)
+async def admin_edit_start(call: CallbackQuery, state: FSMContext):
+    """O'zgartirish: yangi qiymat keyingi xabarda yuboriladi (bekor qilish — ❌ Bekor qilish)."""
+    kind, uid, *rest = call.data.split(":")
+    idx = int(rest[0]) if rest else None
+    await state.clear()
+    await state.update_data(uid=int(uid), idx=idx)
+    await call.answer()
+    name = html.escape(user_name(int(uid)), quote=False)
+    if kind == "aun":
+        await call.message.answer(f"<b>{name}</b> — yangi ismni yozing:")
+        await state.set_state(AdminEdit.name)
+    elif kind == "auf":
+        await call.message.answer(f"<b>{name}</b> — yangi telefon raqamni yozing (masalan <code>+998901234567</code>):")
+        await state.set_state(AdminEdit.phone)
+    else:
+        what = f"{idx + 1}-yo'lovchining yangi ma'lumotini" if idx is not None else "yangi yo'lovchi ma'lumotini"
+        await call.message.answer(f"<b>{name}</b> — {what} kiriting.\n{PASSENGER_FORM}")
+        await state.set_state(AdminEdit.passenger)
+
+
+@router.message(AdminEdit.name, F.text, F.from_user.id == OWNER_ID)
+async def admin_edit_name(message: Message, state: FSMContext):
+    name = " ".join(message.text.split())[:60]
+    if not name:
+        await message.answer("Ism bo'sh bo'lmasin — qayta yozing:")
+        return
+    uid = (await state.get_data())["uid"]
+    users.update(uid, display_name=name)
+    await state.clear()
+    await message.answer("✅ Ism saqlandi.")
+    await show_user_card(message, uid)
+
+
+@router.message(AdminEdit.phone, F.text, F.from_user.id == OWNER_ID)
+async def admin_edit_phone(message: Message, state: FSMContext):
+    try:
+        phone = normalize_phone(message.text)
+    except ValueError as e:
+        await message.answer(f"{html.escape(str(e))}\nQayta yozing:")
+        return
+    uid = (await state.get_data())["uid"]
+    users.update(uid, phone=phone)
+    await state.clear()
+    await message.answer("✅ Telefon raqam saqlandi.")
+    await show_user_card(message, uid)
+
+
+@router.message(AdminEdit.passenger, F.text, F.from_user.id == OWNER_ID)
+async def admin_edit_passenger(message: Message, state: FSMContext):
+    try:
+        passenger = parse_passenger_text(message.text)
+    except ValueError as e:
+        await message.answer(f"Quyidagilar topilmadi yoki noto'g'ri:\n{html.escape(str(e))}\n\n{PASSENGER_FORM}")
+        return
+    data = await state.get_data()
+    uid, idx = data["uid"], data["idx"]
+    if idx is not None and idx < len(users.passengers(uid)):
+        users.replace_passenger(uid, idx, passenger)
+    else:  # yangi: ro'yxat bo'sh bo'lsa — foydalanuvchining o'zi
+        users.add_passenger(uid, passenger, is_self=not users.passengers(uid))
+    await state.clear()
+    await message.answer(f"✅ Saqlandi:\n\n{passenger_card(passenger)}")
+    await show_user_card(message, uid)
 
 
 @router.message(F.text == MENU_STATUS)
@@ -476,14 +719,69 @@ async def cancel_order(call: CallbackQuery, owner_id: int, b: dict, approval: st
 
 # ---------- boshqa foydalanuvchilarning bronlarini tasdiqlash (bot egasi) ----------
 
+def _awaiting_ticket(call: CallbackQuery) -> tuple[int, dict] | None:
+    """Chiptasi hali yuborilmagan (to'lanmagan yoki to'langan) boshqa foydalanuvchi broni."""
+    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
+    if found and found[1].get("approval") == "pending" and found[1].get("status") in (None, "paid"):
+        return found
+    return None
+
+
 @router.callback_query(F.data.startswith("apr:"), F.from_user.id == OWNER_ID)
 async def approve_booking(call: CallbackQuery):
-    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
+    """Bot egasi saytda to'lagan (tugma faqat to'lovdan keyin chiqadi) — chipta PDF ini egasiga yuboradi."""
+    found = _awaiting_ticket(call)
+    if not found:
+        await call.answer("Bron topilmadi yoki allaqachon yakunlangan", show_alert=True)
+        return
+    b = found[1]
+    if b.get("status") != "paid":  # eski xabardagi tugma — saytdan tekshiramiz
+        lifecycle = await timers.lifecycle(b["order_id"])
+        if not is_paid(lifecycle):
+            await call.answer(f"Sayt bu bronni hali to'langan deb ko'rsatmayapti (holat: {lifecycle or 'nomalum'}). "
+                              "Avval «💳 Saytda to'lash» orqali to'lang.", show_alert=True)
+            return
+        users.set_status(found[0], b["order_id"], "paid")
+        await timers.finalize(b["order_id"])  # PDF hali tayyor bo'lmasa ham "Tasdiqlash" tugmasi qolsin
+    await call.answer("Chipta yuborilmoqda...")
+    try:
+        sent = await timers.deliver(b["order_id"])
+    except (UzRailError, TelegramAPIError) as e:
+        await call.message.answer(f"❌ Chipta yuborilmadi: {html.escape(str(e))}\n«✅ Tasdiqlash» ni qayta bosing.")
+        return
+    await call.message.answer("✅ Chipta (PDF) egasiga yuborildi." if sent else
+                              "⚠️ Sayt chipta PDF faylini hali bermadi — biroz kutib «✅ Tasdiqlash» ni qayta bosing.")
+
+
+@router.callback_query(F.data.startswith("crd:"), F.from_user.id == OWNER_ID)
+async def send_card(call: CallbackQuery):
+    found = _awaiting_ticket(call)
     if not found or found[1].get("status"):
         await call.answer("Bron topilmadi yoki allaqachon yakunlangan", show_alert=True)
         return
-    await call.answer("Tasdiqlandi — endi saytda to'lang")
-    await timers.approve(found[1]["order_id"])
+    if not timers.card():
+        await call.answer("Karta raqamingiz kiritilmagan: Ilova → Profil → To'lov kartasi", show_alert=True)
+        return
+    try:
+        await timers.send_card(found[1]["order_id"])
+    except TelegramAPIError as e:
+        await call.answer(f"Yuborilmadi: {e}", show_alert=True)
+        return
+    await call.answer("Karta raqami yuborildi")
+
+
+@router.callback_query(F.data.startswith("tpd:"))
+async def transfer_done(call: CallbackQuery):
+    """Foydalanuvchi chipta pulini bot egasining kartasiga o'tkazdi."""
+    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
+    if not found or not await timers.report_transfer(found[1]["order_id"], call.from_user.id):
+        await call.answer("Bron topilmadi, yakunlangan yoki xabar allaqachon berilgan", show_alert=True)
+        return
+    await call.answer("Bot egasiga xabar berildi — u tekshirib, chiptani to'laydi", show_alert=True)
+    try:  # alohida karta xabaridagi tugma (bron xabarini refresh() allaqachon yangilagan)
+        await call.message.edit_reply_markup(reply_markup=None)
+    except TelegramAPIError:
+        pass
 
 
 @router.callback_query(F.data.startswith("rej:"), F.from_user.id == OWNER_ID)
@@ -500,7 +798,8 @@ async def reject_booking_ask(call: CallbackQuery):
 @router.callback_query(F.data.startswith("rjn:"), F.from_user.id == OWNER_ID)
 async def reject_booking_no(call: CallbackQuery):
     await call.answer()
-    await call.message.edit_reply_markup(reply_markup=booking.approval_markup(call.data.split(":", 1)[1]))
+    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])  # "Saytda to'lash" ham qaytadi
+    await call.message.edit_reply_markup(reply_markup=timers.view(found[1], call.message.chat.id)[1] if found else None)
 
 
 @router.callback_query(F.data.startswith("rjy:"), F.from_user.id == OWNER_ID)
@@ -566,8 +865,13 @@ async def login_start(message: Message, state: FSMContext):
     if message.from_user.id != OWNER_ID:
         await message.answer("Bu bo'lim faqat bot egasi uchun.")
         return
+    await ask_site_login(message, state)
+
+
+async def ask_site_login(message: Message, state: FSMContext):
+    """Saytga kirish: raqamni so'raydi (menyu tugmasi, /login yoki admin panel)."""
     await state.clear()
-    phone = users.get(message.from_user.id).get("phone")
+    phone = users.get(OWNER_ID).get("phone")
     kb = InlineKeyboardBuilder()
     if phone:
         kb.button(text=f"📱 +{phone} bilan kirish", callback_data="login_saved")
@@ -1294,7 +1598,8 @@ async def main():
     ctx = webapp.AppContext(bot=bot, client=client, session=session, users=users, monitors=monitors,
                             owner_id=OWNER_ID, allowed_ids=ALLOWED_IDS, poll_interval=POLL_INTERVAL,
                             client_ru=client_ru, timers=timers,
-                            proxy=site_proxy.SiteProxy(bot.token, session, client))
+                            proxy=site_proxy.SiteProxy(bot.token, session, client),
+                            access=access, set_access=lambda uid, grant: apply_access(bot, uid, grant))
     runner = await webapp.start_server(ctx, WEBAPP_PORT)
     tunnel = None
     try:

@@ -77,12 +77,19 @@ ko'rsatish uchun ishlatiladi. Yangi poyezdlar qo'shilsa: `.venv\Scripts\python u
 
 ## Boshqa foydalanuvchilarning bronlari (egasi tasdiqlaydi va to'laydi)
 Ruxsat berilgan foydalanuvchi bilet olganda (botda, ilovada yoki kuzatuv orqali) joy saytda darhol
-band qilinadi (12 daqiqa), lekin to'lovni bot egasi qiladi:
-- egasiga **🔔 TASDIQLASH KERAK** xabari keladi: to'lov havolasi, taymer, **✅ Tasdiqlash / ❌ Rad etish**;
-- foydalanuvchi "bot egasi tasdiqlab to'lashini kuting" holatini ko'radi — to'lov havolasi va bekor
-  qilish tugmasi unga berilmaydi;
-- tasdiqlansa — foydalanuvchiga xabar boradi, egasi saytda to'laydi; bot har 30 soniyada saytdan
-  tekshiradi va to'langanda foydalanuvchiga **✅ TO'LANDI** xabarini yuboradi;
+band qilinadi (12 daqiqa), lekin to'lovni bot egasi o'z akkauntidan qiladi:
+- foydalanuvchiga bot egasining **karta raqami** va chipta summasi yuboriladi (botdagi bron xabarida va
+  ilovadagi Chiptalar bo'limida). Karta ilovada kiritiladi: **Profil → To'lov kartasi** (faqat egasiga ko'rinadi);
+- pulni o'tkazgach foydalanuvchi **✅ To'lov qildim** ni bosadi (botda yoki ilovada) — egasiga **💸** xabari
+  **💳 Saytda to'lash** tugmasi bilan keladi;
+- egasiga **🔔 ... bron qildi** xabari keladi: taymer, **💳 Saytda to'lash**, **💳 Karta raqamini
+  yuborish** (kartani qayta yuboradi), **❌ Rad etish**;
+- pul kelgach egasi saytda to'laydi. Bot har 30 soniyada saytdan tekshiradi (buyurtma holati yoki chipta
+  holati PAID/CONFIRMED) va to'lov o'tgach egasiga **💰 To'lov o'tdi** xabarini **✅ Tasdiqlash** tugmasi
+  bilan yuboradi — bu tugma to'lovdan oldin chiqmaydi;
+- **✅ Tasdiqlash** bosilganda bot chiptaning PDF faylini saytdan olib foydalanuvchiga yuboradi. Sayt PDF ni
+  hali bermasa (bir necha urinishdan keyin), egasiga aytiladi va tugmani keyinroq qayta bosish mumkin;
+- to'lov havolasi va bekor qilish tugmasi foydalanuvchiga berilmaydi;
 - rad etilsa — bron saytda bekor qilinadi va foydalanuvchiga xabar boradi;
 - 12 daqiqada to'lanmasa — bron bekor bo'ladi, ikkala tomonga ham xabar boradi.
 
@@ -106,9 +113,20 @@ Bekor qilishdan oldin tasdiq so'raladi. To'langan chiptani saytning o'zida qayta
 - **🎫 Bilet olish** — yangi bron/kuzatuv
 - **🔔 Kuzatuvlarim** — kuzatuvlar ro'yxati va o'chirish
 - **ℹ️ Holat** — sayt akkaunti holati
-- **🔑 Saytga kirish** — sayt raqami/parolini o'zgartirish (faqat bot egasi)
-- **👥 Foydalanuvchilar** — ruxsat so'rovlari, ruxsat berish/olish (faqat bot egasi). Begona odam
-  botga yozsa, egasiga **✅ Ruxsat berish / ❌ Rad etish** tugmalari bilan xabar keladi (`access.json`)
+- **🛠 Admin panel** (faqat bot egasi) — menyu tugmasi xabarsiz, darhol alohida ilovani ochadi
+  (`/admin`, `webapp/admin.html`, API — `admin_api.py`). Menyu tugmasidan ochilgan ilovaga Telegram
+  initData bermaydi, shuning uchun havolada bot tokeni bilan imzolangan kalit bor (`?k=`, 30 kun amal
+  qiladi, faqat `/api/admin/...` uchun); **/start** menyuni va kalitni yangilaydi:
+  - **Foydalanuvchilar** — qidiruv (ism, @username, ID, telefon, yo'lovchi ismi, pasport, buyurtma raqami),
+    holat bo'yicha filtr; kartada ism/telefon, yo'lovchilarni (qo'shish, tahrirlash, o'chirish) va ruxsatni
+    o'zgartirish, bronlar va kuzatuvlar ro'yxati;
+  - **Statistika** — davr (bugun / 7 / 30 kun / hammasi): bron qilingan, sotib olingan (summa), to'lov
+    kutilmoqda, bekor / muddati o'tgan, kuzatuvlar; kunlik grafik (jadval ko'rinishi bilan), ko'p bron
+    qilingan yo'nalishlar, foydalanuvchilar kesimi.
+
+  Admin bergan ism `users.json` da `display_name` bo'lib saqlanadi. Begona odam botga yozsa, egasiga
+  **✅ Ruxsat berish / ❌ Rad etish** tugmalari bilan xabar keladi (`access.json`).
+- **🔑 Saytga kirish** (faqat bot egasi) — sayt raqami/parolini o'zgartirish
 - **❌ Bekor qilish**
 
 ## Bot bosqichlari

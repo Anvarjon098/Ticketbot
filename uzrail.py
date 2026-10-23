@@ -1,7 +1,10 @@
 """eticket.uzrailpass.uz sayti API'si bilan ishlovchi asinxron klient."""
 import asyncio
 import base64
+import binascii
 import json
+import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -10,6 +13,7 @@ import httpx
 from passengers import DOC_TYPES, guess_doc_type
 
 BASE_URL = "https://eticket.uzrailpass.uz"
+log = logging.getLogger(__name__)
 
 
 class UzRailError(Exception):
@@ -270,6 +274,27 @@ class UzRailClient:
         body = {"orderId": order_id, "userId": str(decode_jwt(site_token).get("id", ""))}
         data = await self._post("/api/v3/universal-orders/get-snapshot", body, auth=site_token)
         return (data or {}).get("response") or {}
+
+    async def ticket_pdf(self, site_token: str, order_id: str) -> bytes | None:
+        """To'langan buyurtma chiptasi (PDF). Sayt base64 qaytaradi: matn yoki {"pdf": ...} (response ichida ham)."""
+        try:
+            resp = await self._http.get(f"/api/v1/document/{order_id}/pdf",
+                                        headers={"Authorization": f"Bearer {site_token}"})
+            if resp.status_code != 200:
+                log.warning("Chipta PDF olinmadi %s: HTTP %s %s", order_id, resp.status_code, resp.text[:200])
+                return None
+            if resp.content.startswith(b"%PDF"):
+                return resp.content
+            data = resp.json()
+            for _ in range(3):  # {"response": {"pdf": "..."}} kabi o'ramlarni ochamiz
+                if isinstance(data, dict):
+                    data = data.get("pdf") or data.get("response") or data.get("data")
+            if isinstance(data, str) and data:
+                pdf = base64.b64decode(re.sub(r"^data:[^;]*;base64,|\s", "", data))
+                return pdf if pdf.startswith(b"%PDF") else None
+        except (httpx.HTTPError, ValueError, binascii.Error) as e:
+            log.warning("Chipta PDF olinmadi %s: %s", order_id, e)
+        return None
 
     async def payment_deadline(self, site_token: str, order_id: str) -> datetime | None:
         """Bronni to'lash muddati (sayt bronni 12 daqiqa saqlaydi). Javob: response.response.expiryTime."""

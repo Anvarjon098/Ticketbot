@@ -1,5 +1,6 @@
 """Bron qilish: joy topish, saytga yuborish va natijani yozib qo'yish (bot, ilova va kuzatuv uchun umumiy)."""
 import logging
+import re
 import time
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -176,9 +177,36 @@ def with_pay_button(markup: InlineKeyboardMarkup, url: str) -> InlineKeyboardMar
                                                  *markup.inline_keyboard])
 
 
-def approval_markup(order_id: str) -> InlineKeyboardMarkup:
-    """Boshqa foydalanuvchining broni: bot egasi tasdiqlab to'laydi yoki rad etadi."""
+def approval_markup(order_id: str, paid: bool = False) -> InlineKeyboardMarkup:
+    """Boshqa foydalanuvchining broni: bot egasi pulni olib saytda to'laydi yoki rad etadi.
+
+    paid=True — saytda to'langan: faqat "Tasdiqlash" (chipta PDF egasiga yuboriladi). Tasdiqlash tugmasi
+    to'lovdan oldin ko'rsatilmaydi.
+    """
+    if paid:
+        return InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="✅ Tasdiqlash — chiptani yuborish", callback_data=f"apr:{order_id}"[:60])]])
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"apr:{order_id}"[:60]),
+        InlineKeyboardButton(text="💳 Karta raqamini yuborish", callback_data=f"crd:{order_id}"[:60]),
         InlineKeyboardButton(text="❌ Rad etish", callback_data=f"rej:{order_id}"[:60]),
     ]])
+
+
+def transfer_markup(order_id: str) -> InlineKeyboardMarkup:
+    """Foydalanuvchi: chipta pulini kartaga o'tkazgach bot egasiga xabar beradi."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ To'lov qildim", callback_data=f"tpd:{order_id}"[:60])]])
+
+
+def format_card(number: str) -> str:
+    digits = re.sub(r"\D", "", number or "")
+    return " ".join(digits[i:i + 4] for i in range(0, len(digits), 4))
+
+
+def card_text(record: dict, card: dict) -> str:
+    """Foydalanuvchiga: chipta pulini bot egasining kartasiga o'tkazish."""
+    price = f"{record.get('price') or 0:,}".replace(",", " ")
+    holder = f"\nKarta egasi: {card['holder']}" if card.get("holder") else ""
+    return (f"💳 Chipta puli: ≈ {price} so'm\n"
+            f"Karta: {format_card(card['number'])}{holder}\n\n"
+            "Pulni shu kartaga o'tkazing. Bot egasi chiptani saytda to'lab tasdiqlagach, chipta shu yerga yuboriladi.")
