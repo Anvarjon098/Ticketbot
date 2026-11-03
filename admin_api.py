@@ -129,7 +129,7 @@ async def stats(request: web.Request):
              or str(uid) for uid in _user_ids(ctx)}
     bookings = [{"order_id": b.get("order_id"), "user_id": uid, "user": names.get(uid, str(uid)),
                  "created": b.get("created"), "state": _booking_state(b), "price": b.get("price") or 0,
-                 "route": f"{b.get('from_name')} → {b.get('to_name')}", "passengers": len(b.get("passengers") or []),
+                 "service_fee": b.get("service_fee") or 0, "route": f"{b.get('from_name')} → {b.get('to_name')}", "passengers": len(b.get("passengers") or []),
                  "departure": b.get("departure"), "train": b.get("train_number")}
                 for uid in ctx.users.ids() for b in ctx.users.bookings(uid)]
     monitors = [{"id": m.id, "user_id": m.chat_id, "user": names.get(m.chat_id, str(m.chat_id)),

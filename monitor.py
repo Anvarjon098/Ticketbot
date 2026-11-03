@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from booking import SalesClosed, booking_record, booking_text, payment_deadline, reserve
+from booking import SERVICE_FEE, SalesClosed, booking_record, booking_text, payment_deadline, reserve
 from categories import describe
 from seats import SeatChoice, choose_seats
 from site_auth import SiteSession
@@ -204,6 +204,7 @@ class MonitorManager:
         m.order_id = order_id
         self._save()
         record = booking_record(order_id, m.train, choice, m.passengers, m.from_name, m.to_name)
+        record["service_fee"] = SERVICE_FEE  # kuzatuv orqali bron — xizmat haqi bilan
         record["expires_at"] = await payment_deadline(self.client, self.session, order_id)
         headline = "🎉 KUZATUVDAGI REYSDA JOY BRON QILINDI!"
         if self.on_booked:  # saqlaydi va xabar beradi (boshqa foydalanuvchiniki — egasining tasdig'i bilan)

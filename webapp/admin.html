@@ -309,7 +309,8 @@ function renderUser({ user: u, bookings, monitors }) {
       <div class="row between"><b>${esc(b.from_name)} → ${esc(b.to_name)}</b><span class="badge ${c}">${l}</span></div>
       <div class="muted">${esc(b.departure)} · poyezd ${esc(b.train_number)} · vagon ${esc(b.car_number)}, joy ${esc((b.seats || []).join(", "))}</div>
       <div class="muted">${(b.passengers || []).map(esc).join(", ")}</div>
-      <div class="row between" style="margin-top:4px"><span class="muted num">${esc(b.order_id)}</span><b class="num">≈ ${money(b.price)}</b></div>
+      <div class="row between" style="margin-top:4px"><span class="muted num">${esc(b.order_id)}</span><b class="num">≈ ${money((b.price || 0) + (b.service_fee || 0))}</b></div>
+      ${b.service_fee ? `<div class="muted num" style="text-align:right">chipta ${money(b.price || 0)} + xizmat haqi ${money(b.service_fee)}</div>` : ""}
     </div>`;
   }).join("");
   const MON = (m) => m.order_id ? ["ok", "bron qilindi"] : m.active ? ["warn", `kuzatilmoqda · ${m.checks}`] : ["no", "to'xtagan"];
@@ -472,7 +473,9 @@ function renderStats() {
   const by = (state) => rows.filter(r => r.state === state);
   const paid = by("paid"), active = by("active");
   const lost = rows.filter(r => seriesOf(r.state) === "lost");
-  const sum = (list) => list.reduce((s, r) => s + (r.price || 0), 0);
+  const fee = (r) => r.service_fee || 0;
+  const sum = (list) => list.reduce((s, r) => s + (r.price || 0) + fee(r), 0);  // chipta narxi + xizmat haqi
+  const fees = (list) => list.reduce((s, r) => s + fee(r), 0);
   const people = (list) => list.reduce((s, r) => s + (r.passengers || 0), 0);
   const activeMonsNow = statsData.monitors.filter(m => m.state === "active").length;
   const tile = (label, value, sub) => `<div class="tile"><div class="label">${label}</div>
@@ -482,6 +485,7 @@ function renderStats() {
     ${tile("🎫 Bron qilingan", fmt(rows.length), `${fmt(people(rows))} yo'lovchi`)}
     ${tile("✅ Sotib olingan", fmt(paid.length), `≈ ${money(sum(paid))}`)}
     ${tile("⏳ To'lov kutilmoqda", fmt(active.length), `≈ ${money(sum(active))}`)}
+    ${tile("💼 Xizmat haqi", money(fees(paid)), `${fmt(paid.filter(fee).length)} ta bron · kutilmoqda: ${money(fees(active))}`)}
     ${tile("❌ Bekor / muddati o'tgan", fmt(lost.length), rows.length ? `${Math.round(lost.length * 100 / rows.length)}% bronlardan` : "—")}
     ${tile("🔔 Kuzatuvga qo'yilgan", fmt(mons.length), `hozir faol: ${fmt(activeMonsNow)}`)}
     ${tile("🎯 Kuzatuv orqali bron", fmt(mons.filter(m => m.state === "booked").length),
@@ -513,7 +517,7 @@ function renderStats() {
 
     const perUser = {};
     rows.forEach(r => { const x = perUser[r.user_id] ||= { name: r.user, n: 0, paid: 0, sum: 0, mons: 0 };
-      x.n++; if (r.state === "paid") { x.paid++; x.sum += r.price || 0; } });
+      x.n++; if (r.state === "paid") { x.paid++; x.sum += (r.price || 0) + fee(r); } });
     mons.forEach(m => { (perUser[m.user_id] ||= { name: m.user, n: 0, paid: 0, sum: 0, mons: 0 }).mons++; });
     const urows = Object.entries(perUser).sort((a, b) => b[1].n - a[1].n || b[1].mons - a[1].mons);
     html += `<h2>Foydalanuvchilar bo'yicha</h2><div class="card" style="padding:8px 10px"><table>

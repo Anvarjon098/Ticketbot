@@ -291,7 +291,7 @@ const I18N = {
     wait_consecutive: "🔔 Ketma-ket joy chiqishini kutish",
     booked_alert: "Bron qilindi! Vagon {car}, joylar: {seats}.\nTo'lovni saytda tezda amalga oshiring.",
     monitor_alert: "Kuzatuv boshlandi. Har {s} sekundda tekshiriladi, joy chiqishi bilan bron qilib, botda xabar beraman.",
-    booked_h: "Bron qilingan", departure: "Jo'nash", arrival: "Yetib borish", seats: "Joylar", price: "Narx",
+    booked_h: "Bron qilingan", departure: "Jo'nash", arrival: "Yetib borish", seats: "Joylar", price: "Narx", service_fee: "Xizmat haqi",
     order: "Buyurtma", pay: "💳 Saytda to'lash",
     cancel_booking: "❌ Bronni bekor qilish", st_cancelled: "bekor qilingan", cancelled_ok: "Bron bekor qilindi",
     st_failed: "amalga oshmagan", st_expired: "muddati tugagan", st_paid: "to'langan",
@@ -362,7 +362,7 @@ const I18N = {
     wait_consecutive: "🔔 Ждать места подряд",
     booked_alert: "Забронировано! Вагон {car}, места: {seats}.\nОплатите на сайте как можно скорее.",
     monitor_alert: "Отслеживание запущено. Проверка каждые {s} сек.; как только появятся места — забронирую и сообщу в боте.",
-    booked_h: "Забронировано", departure: "Отправление", arrival: "Прибытие", seats: "Места", price: "Цена",
+    booked_h: "Забронировано", departure: "Отправление", arrival: "Прибытие", seats: "Места", price: "Цена", service_fee: "Сервисный сбор",
     order: "Заказ", pay: "💳 Оплатить на сайте",
     cancel_booking: "❌ Отменить бронь", st_cancelled: "отменено", cancelled_ok: "Бронь отменена",
     st_failed: "не оформлено", st_expired: "срок истёк", st_paid: "оплачено",
@@ -724,11 +724,13 @@ async function loadTickets() {
           <div class="kv"><span>${t("car")}</span><span>${esc(b.car_number)} · ${esc(LANG === "ru" ? b.car_type_ru || b.car_type : b.car_type)}</span></div>
           <div class="kv"><span>${t("seats")}</span><span>${b.seats.join(", ")}</span></div>
           <div class="kv"><span>${t("passengers")}</span><span>${b.passengers.map(esc).join("<br>")}</span></div>
-          <div class="kv"><span>${t("price")}</span><span>≈ ${money(b.price)}</span></div>
           <div class="kv"><span>${t("order")}</span><span>${esc(b.order_id)}</span></div>
+          <div class="kv"><span>${t("price")}</span><span>≈ ${money(b.price)}</span></div>
+          ${b.service_fee ? `<div class="kv"><span>${t("service_fee")}</span><span>${money(b.service_fee)}</span></div>
+          <div class="kv"><span>${t("total")}</span><span><b>≈ ${money((b.price || 0) + b.service_fee)}</b></span></div>` : ""}
           ${!status && b.card ? `<div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:var(--soft)">
             <div class="big">${t("transfer_h")}</div>
-            <div class="kv"><span>${t("amount")}</span><span><b>≈ ${money(b.price)}</b></span></div>
+            <div class="kv"><span>${t("amount")}</span><span><b>≈ ${money((b.price || 0) + (b.service_fee || 0))}</b></span></div>
             <div class="kv"><span>${t("card_number")}</span><span><b class="times">${esc(b.card.number)}</b></span></div>
             ${b.card.holder ? `<div class="kv"><span>${t("card_holder")}</span><span>${esc(b.card.holder)}</span></div>` : ""}
             <div style="display:flex; justify-content:flex-end; margin-top:10px">

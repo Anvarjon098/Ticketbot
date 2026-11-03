@@ -215,10 +215,10 @@ class BookingTimers:
         pay_url = (site_proxy.pay_link(self.pay_base, self.bot.token, order_id, record.get("expires_at"))
                    if self.pay_base else None)
         markup = booking.with_pay_button(InlineKeyboardMarkup(inline_keyboard=[]), pay_url) if pay_url else None
-        price = f"{record.get('price') or 0:,}".replace(",", " ")
+        price = booking.som(booking.total_price(record))
         try:
             await self.bot.send_message(
-                self.owner_id, f"💸 {record.get('by') or 'Foydalanuvchi'} chipta pulini (≈ {price} so'm) kartangizga "
+                self.owner_id, f"💸 {record.get('by') or 'Foydalanuvchi'} chipta pulini (≈ {price}) kartangizga "
                                f"o'tkazganini bildirdi.\nBuyurtma: {order_id}\n"
                                "Kartangizni tekshirib, saytda to'lang — so'ng «✅ Tasdiqlash» tugmasi chiqadi.",
                 parse_mode=None, reply_markup=markup)

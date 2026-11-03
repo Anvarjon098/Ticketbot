@@ -149,6 +149,18 @@ def booking_record(order_id: str, train: dict, choice: SeatChoice, passengers: l
     }
 
 
+SERVICE_FEE = 50_000  # kuzatuv orqali avtomatik bron qilingan chipta uchun xizmat haqi (so'm)
+
+
+def som(value: int) -> str:
+    return f"{value:,}".replace(",", " ") + " so'm"
+
+
+def total_price(b: dict) -> int:
+    """To'lanadigan summa: chipta narxi + xizmat haqi (kuzatuv orqali bron bo'lsa)."""
+    return (b.get("price") or 0) + (b.get("service_fee") or 0)
+
+
 def booking_text(b: dict, with_pay: bool = True, pay_button: bool = False) -> str:
     """Bron tafsilotlari; with_pay=False — to'lov havolasisiz (to'lovni bot egasi qiladigan foydalanuvchi uchun).
 
@@ -161,6 +173,10 @@ def booking_text(b: dict, with_pay: bool = True, pay_button: bool = False) -> st
         f"Yo'lovchilar: {', '.join(b['passengers'])}\n"
         f"Buyurtma: {b['order_id']}"
     )
+    if b.get("price"):
+        text += f"\nNarxi: ≈ {som(b['price'])}"
+    if b.get("service_fee"):
+        text += f"\nXizmat haqi: {som(b['service_fee'])}\nJami: ≈ {som(total_price(b))}"
     if not with_pay:
         return text
     if pay_button:
@@ -205,8 +221,8 @@ def format_card(number: str) -> str:
 
 def card_text(record: dict, card: dict) -> str:
     """Foydalanuvchiga: chipta pulini bot egasining kartasiga o'tkazish."""
-    price = f"{record.get('price') or 0:,}".replace(",", " ")
+    price = som(total_price(record))
     holder = f"\nKarta egasi: {card['holder']}" if card.get("holder") else ""
-    return (f"💳 Chipta puli: ≈ {price} so'm\n"
+    return (f"💳 Chipta puli: ≈ {price}\n"
             f"Karta: {format_card(card['number'])}{holder}\n\n"
             "Pulni shu kartaga o'tkazing. Bot egasi chiptani saytda to'lab tasdiqlagach, chipta shu yerga yuboriladi.")
