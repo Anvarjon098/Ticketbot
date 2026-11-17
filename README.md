@@ -71,6 +71,17 @@ Keyin serverda: `chown ticketbot:ticketbot /opt/ticketbot/*.json /opt/ticketbot/
 | Qayta ishga tushirish / to'xtatish | `systemctl restart ticketbot` / `systemctl stop ticketbot` |
 | Kodni yangilash | `cd /opt/ticketbot && git pull && sudo bash deploy/install.sh` |
 
+### Root (sudo) huquqisiz server
+`sudo` bo'lmasa (masalan, bepul VPS), hammasi bot papkasi ichiga o'rnatiladi — Chromium kutubxonalari
+ham `.deb` paketlardan root'siz ochib olinadi (~600 MB disk):
+```bash
+git clone -b claude/friendly-albattani-l04dbj https://github.com/anvarjon098/ticketbot.git ~/ticketbot
+cd ~/ticketbot && bash deploy/install_noroot.sh
+```
+Maxfiy fayllarni `~/ticketbot` ga ko'chiring, keyin botni boshqarish:
+`bash deploy/botctl.sh start | stop | restart | status | log`. Bot yiqilsa 10 soniyada o'zi qayta turadi,
+lekin server qayta yonsa, `start` ni qayta bering (yoki panelda "@reboot" vazifasi sifatida qo'shing).
+
 ## Ilova (Telegram Mini App)
 Botdagi **Ilova** (chap pastdagi menyu tugmasi) yoki **📱 Ilovani ochish** tugmasi orqali ochiladi.
 Bo'limlar: **Profil** (o'z ma'lumotlari, sayt akkaunti), **Chiptalar** (bronlar, to'lov havolasi, kuzatuvlar),
