@@ -57,7 +57,7 @@ Keyin serverda: `chown ticketbot:ticketbot /opt/ticketbot/*.json /opt/ticketbot/
 **4. Ilova uchun HTTPS manzil** (Tailscale manzili endi ishlamaydi) — ikkitadan biri:
 - **Domen bo'lsa (tavsiya):** domen A yozuvini server IP siga qarating, Caddy o'rnating
   (`apt install caddy`), `deploy/Caddyfile` dagi domenni almashtirib `/etc/caddy/Caddyfile` ga ko'chiring,
-  `systemctl reload caddy`. `.env` da `WEBAPP_URL=https://sizning-domen.uz`.
+  `systemctl reload caddy`. `.env` da `WEBAPP_URL=https://vps.doliyev.uz`.
 - **Domen bo'lmasa:** `.env` da `WEBAPP_URL=` bo'sh qoldiring va cloudflared o'rnating
   (`curl -L -o /opt/ticketbot/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /opt/ticketbot/bin/cloudflared`).
   Manzil har qayta ishga tushganda o'zgaradi, bot uni o'zi yangilaydi.
