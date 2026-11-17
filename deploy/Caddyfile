@@ -1,0 +1,6 @@
+# Ilova (Mini App) uchun doimiy HTTPS. bot.example.uz o'rniga o'z domeningizni yozing
+# (domenning A yozuvi server IP siga qaratilgan bo'lishi kerak). Caddy sertifikatni o'zi oladi.
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+bot.example.uz {
+	reverse_proxy 127.0.0.1:8080
+}

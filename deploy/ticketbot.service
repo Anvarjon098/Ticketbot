@@ -1,0 +1,19 @@
+[Unit]
+Description=UzRailPass Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ticketbot
+WorkingDirectory=/opt/ticketbot
+Environment=PYTHONIOENCODING=utf-8
+Environment=PYTHONUNBUFFERED=1
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/ticketbot/.browsers
+ExecStart=/opt/ticketbot/.venv/bin/python bot.py
+# Yiqilsa 10 soniyadan keyin qayta ishga tushadi (Windows'dagi start_bot.ps1 o'rniga)
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

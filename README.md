@@ -33,6 +33,44 @@ Manzil `.env` dagi `WEBAPP_URL` da; u bo'lsa vaqtinchalik cloudflared tunneli is
 
 Ilova faqat kompyuter yoqiq va internetga ulangan paytda ishlaydi.
 
+## Serverga ko'chirish (Linux VPS)
+Kompyuter o'chiq bo'lsa ham bot 24/7 ishlashi uchun. Ubuntu 22.04/24.04, kamida 1 GB RAM (Chromium uchun; 2 GB tavsiya).
+
+> ⚠️ eticket.uzrailpass.uz ba'zan chet el IP larini bloklaydi. Server olishdan oldin (yoki darhol keyin)
+> tekshiring: `curl -I https://eticket.uzrailpass.uz` — javob kelmasa, O'zbekistondagi VPS oling.
+
+**1. Kompyuterda botni to'xtating** (bir token bilan ikkita bot ishlamasin):
+`powershell -ExecutionPolicy Bypass -File stop_bot.ps1` va Startup'dagi `UzRailBot.vbs` ni o'chiring.
+
+**2. Kodni serverga yuklang va o'rnating:**
+```bash
+git clone https://github.com/anvarjon098/ticketbot.git /opt/ticketbot
+sudo bash /opt/ticketbot/deploy/install.sh
+```
+
+**3. Maxfiy/ma'lumot fayllarini kompyuterdan ko'chiring** (ular GitHub'da yo'q). Windows PowerShell'da:
+```powershell
+scp .env account.json users.json monitors.json access.json site_token.txt root@SERVER_IP:/opt/ticketbot/
+```
+Keyin serverda: `chown ticketbot:ticketbot /opt/ticketbot/*.json /opt/ticketbot/.env /opt/ticketbot/site_token.txt`
+
+**4. Ilova uchun HTTPS manzil** (Tailscale manzili endi ishlamaydi) — ikkitadan biri:
+- **Domen bo'lsa (tavsiya):** domen A yozuvini server IP siga qarating, Caddy o'rnating
+  (`apt install caddy`), `deploy/Caddyfile` dagi domenni almashtirib `/etc/caddy/Caddyfile` ga ko'chiring,
+  `systemctl reload caddy`. `.env` da `WEBAPP_URL=https://sizning-domen.uz`.
+- **Domen bo'lmasa:** `.env` da `WEBAPP_URL=` bo'sh qoldiring va cloudflared o'rnating
+  (`curl -L -o /opt/ticketbot/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /opt/ticketbot/bin/cloudflared`).
+  Manzil har qayta ishga tushganda o'zgaradi, bot uni o'zi yangilaydi.
+
+**5. Ishga tushirish:** `systemctl restart ticketbot`. Botga `/start` yozing.
+
+| Amal | Buyruq |
+|---|---|
+| Holat | `systemctl status ticketbot` |
+| Loglar | `journalctl -u ticketbot -f` |
+| Qayta ishga tushirish / to'xtatish | `systemctl restart ticketbot` / `systemctl stop ticketbot` |
+| Kodni yangilash | `cd /opt/ticketbot && git pull && sudo bash deploy/install.sh` |
+
 ## Ilova (Telegram Mini App)
 Botdagi **Ilova** (chap pastdagi menyu tugmasi) yoki **📱 Ilovani ochish** tugmasi orqali ochiladi.
 Bo'limlar: **Profil** (o'z ma'lumotlari, sayt akkaunti), **Chiptalar** (bronlar, to'lov havolasi, kuzatuvlar),

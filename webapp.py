@@ -7,7 +7,9 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import os
 import re
+import shutil
 import time
 from dataclasses import dataclass
 from typing import Awaitable, Callable
@@ -30,7 +32,9 @@ from users import UserStore
 from uzrail import UzRailClient, UzRailError
 
 STATIC_DIR = Path(__file__).with_name("webapp")
-CLOUDFLARED = Path(__file__).parent / "bin" / "cloudflared.exe"
+# Windows: bin/cloudflared.exe; Linux server: bin/cloudflared yoki tizimga o'rnatilgan cloudflared
+_CF_LOCAL = Path(__file__).parent / "bin" / ("cloudflared.exe" if os.name == "nt" else "cloudflared")
+CLOUDFLARED = _CF_LOCAL if _CF_LOCAL.exists() else Path(shutil.which("cloudflared") or _CF_LOCAL)
 INIT_DATA_MAX_AGE = 24 * 3600
 # Pastki menyu (reply keyboard) tugmasidan ochilgan ilovaga Telegram initData bermaydi — admin panel havolasida
 # bot tokeni bilan imzolangan kalit bo'ladi (faqat /api/admin/... uchun, bot egasi sifatida). /start yangilaydi.
@@ -519,7 +523,8 @@ def create_app(ctx: AppContext) -> web.Application:
 async def start_server(ctx: AppContext, port: int) -> web.AppRunner:
     runner = web.AppRunner(create_app(ctx), access_log=None)
     await runner.setup()
-    await web.TCPSite(runner, "127.0.0.1", port).start()  # faqat mahalliy — tashqariga tunnel orqali
+    host = os.getenv("WEBAPP_HOST", "127.0.0.1")  # standart — faqat mahalliy (tashqariga tunnel/Caddy orqali)
+    await web.TCPSite(runner, host, port).start()
     return runner
 
 
