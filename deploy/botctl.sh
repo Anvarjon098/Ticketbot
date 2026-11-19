@@ -6,7 +6,8 @@ APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$APP_DIR"
 PIDFILE="$APP_DIR/watchdog.pid"
 
-running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+# PID fayldagi jarayon haqiqatan bizning kuzatuvchimizmi (konteyner qayta yonsa, PID boshqa dasturga tegishli bo'lishi mumkin)
+running() { [ -f "$PIDFILE" ] && ps -p "$(cat "$PIDFILE")" -o args= 2>/dev/null | grep -q "env_noroot.sh"; }
 
 case "${1:-}" in
   start)
