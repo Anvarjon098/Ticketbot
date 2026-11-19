@@ -81,6 +81,16 @@ cd ~/ticketbot && bash deploy/install_noroot.sh
 Maxfiy fayllarni `~/ticketbot` ga ko'chiring, keyin botni boshqarish:
 `bash deploy/botctl.sh start | stop | restart | status | log`. Bot yiqilsa 10 soniyada o'zi qayta turadi,
 lekin server qayta yonsa, `start` ni qayta bering (yoki panelda "@reboot" vazifasi sifatida qo'shing).
+Avtomatik ishga tushish uchun `~/.bashrc` va `~/.profile` ga `bash "$HOME/ticketbot/deploy/botctl.sh" start >/dev/null 2>&1`
+qatorini qo'shing.
+
+Panel subdomen beradigan bo'lsa (masalan, konteynerdagi 80/8000-portga yo'naltiradigan), cloudflared kerak emas —
+`.env` da:
+```
+WEBAPP_URL=https://SUBDOMEN
+WEBAPP_PORT=80
+WEBAPP_HOST=0.0.0.0
+```
 
 ## Ilova (Telegram Mini App)
 Botdagi **Ilova** (chap pastdagi menyu tugmasi) yoki **📱 Ilovani ochish** tugmasi orqali ochiladi.
