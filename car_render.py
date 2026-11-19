@@ -1,19 +1,18 @@
 """Bot uchun vagon sxemasi rasmi (PNG): saytdagi sxema, bo'sh joylar ko'k, band — kulrang, tanlangan — yashil.
 
 Ko'rinmas Chromium (Playwright) da chiziladi. Uzun vagon telefonda o'qilishi uchun ikki qatorga bo'lib
-ko'rsatiladi. Brauzer xotira egallamasligi uchun bir necha daqiqa ishlatilmasa yopiladi.
+ko'rsatiladi. Brauzer umumiy (shared_browser): bir necha daqiqa ishlatilmasa yopiladi.
 """
 import asyncio
 import html
 import json
 import logging
 
-from playwright.async_api import async_playwright
+import shared_browser
 
 from car_schemas import SCHEMA_DIR
 
 log = logging.getLogger(__name__)
-IDLE_CLOSE = 300  # soniya
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><style>
 body { margin: 0; background: #fff; font: 15px Arial, sans-serif; color: #15171c; }
@@ -76,32 +75,13 @@ if (SVG) {
 
 
 class CarRenderer:
+    """Umumiy brauzerda (shared_browser) chizadi; bir vaqtda bitta rasm."""
+
     def __init__(self):
         self._lock = asyncio.Lock()
-        self._pw = None
-        self._browser = None
-        self._page = None
-        self._closer: asyncio.Task | None = None
-
-    async def _ensure(self):
-        if self._page is None:
-            self._pw = await async_playwright().start()
-            self._browser = await self._pw.chromium.launch()
-            self._page = await self._browser.new_page(viewport={"width": 1000, "height": 600}, device_scale_factor=2)
-
-    async def _close_later(self):
-        await asyncio.sleep(IDLE_CLOSE)
-        async with self._lock:
-            await self.close()
 
     async def close(self):
-        if self._browser:
-            try:
-                await self._browser.close()
-                await self._pw.stop()
-            except Exception:
-                log.exception("Brauzerni yopishda xato")
-        self._pw = self._browser = self._page = None
+        await shared_browser.close()
 
     async def render(self, car: dict, picked: list[int], title: str, sub: str) -> bytes:
         """car — car_schemas.cars() elementi. PNG baytlarini qaytaradi."""
@@ -111,11 +91,10 @@ class CarRenderer:
             "free": json.dumps(car["free"]), "picked": json.dumps(picked), "svg": json.dumps(svg),
             "total": max([car.get("seats_count") or 0, *car["free"]]),
         }
-        async with self._lock:
-            if self._closer:
-                self._closer.cancel()
-            await self._ensure()
-            await self._page.set_content(page_html)
-            png = await self._page.locator("#root").screenshot(type="png")
-            self._closer = asyncio.create_task(self._close_later())
-            return png
+        async with self._lock, shared_browser.use() as browser:
+            page = await browser.new_page(viewport={"width": 1000, "height": 600}, device_scale_factor=2)
+            try:
+                await page.set_content(page_html)
+                return await page.locator("#root").screenshot(type="png")
+            finally:
+                await page.close()

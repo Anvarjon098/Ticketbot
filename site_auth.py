@@ -10,7 +10,9 @@ import logging
 import re
 from pathlib import Path
 
-from playwright.async_api import async_playwright, TimeoutError as PwTimeout
+from playwright.async_api import TimeoutError as PwTimeout
+
+import shared_browser
 
 from uzrail import BASE_URL, UzRailError, decode_jwt, token_expired
 
@@ -35,10 +37,9 @@ def normalize_phone(raw: str) -> str:
 
 async def browser_login(phone: str, password: str) -> str:
     """Ko'rinmas brauzerda login sahifasini to'ldirib, token qaytaradi."""
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+    async with shared_browser.use() as browser:
+        page = await browser.new_page(locale="uz-UZ")
         try:
-            page = await browser.new_page(locale="uz-UZ")
             await page.goto(f"{BASE_URL}/uz/auth/login", wait_until="networkidle", timeout=60_000)
             await page.fill("input[formcontrolname=phone]", phone[-9:])  # +998 maska ichida bor
             await page.fill("input[formcontrolname=password]", password)
@@ -65,7 +66,7 @@ async def browser_login(phone: str, password: str) -> str:
             raise LoginError("Sayt javob bermadi (login vaqti tugadi).",
                              "Сайт не ответил (время входа истекло).") from e
         finally:
-            await browser.close()
+            await page.close()
 
 
 class SiteSession:
