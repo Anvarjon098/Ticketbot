@@ -141,6 +141,10 @@ class UzRailClient:
                                  f"Сайт временно заблокировал запросы: {message}")
         if resp.status_code >= 400:
             log.warning("Sayt xatosi %s -> HTTP %s: %s", url, resp.status_code, resp.text[:300])
+            if isinstance(data, dict) and data.get("messageUz"):  # masalan, {"messageUz": "Texnik tanaffus", ...}
+                period = f" ({data['startTime']}–{data['endTime'][:5]})" if data.get("startTime") and data.get("endTime") else ""
+                raise UzRailError(f"Saytda: {data['messageUz']}{period}. Keyinroq qayta urinib ko'ring.",
+                                  f"На сайте: {data.get('messageRu') or data['messageUz']}{period}. Попробуйте позже.")
             if not message and resp.status_code in (424, 500, 502, 503, 504):
                 raise UzRailError(f"Sayt vaqtincha ishlamayapti (HTTP {resp.status_code}). Birozdan keyin qayta urinib ko'ring.",
                                   f"Сайт временно не работает (HTTP {resp.status_code}). Попробуйте чуть позже.")
