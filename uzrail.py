@@ -140,6 +140,10 @@ class UzRailClient:
             raise RateLimitError(f"Sayt vaqtincha bloklab qo'ydi: {message}",
                                  f"Сайт временно заблокировал запросы: {message}")
         if resp.status_code >= 400:
+            log.warning("Sayt xatosi %s -> HTTP %s: %s", url, resp.status_code, resp.text[:300])
+            if not message and resp.status_code in (424, 500, 502, 503, 504):
+                raise UzRailError(f"Sayt vaqtincha ishlamayapti (HTTP {resp.status_code}). Birozdan keyin qayta urinib ko'ring.",
+                                  f"Сайт временно не работает (HTTP {resp.status_code}). Попробуйте чуть позже.")
             raise UzRailError(message or f"HTTP {resp.status_code}")
         return data
 
