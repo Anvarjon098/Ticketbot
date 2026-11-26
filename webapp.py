@@ -496,7 +496,7 @@ async def transfer_done(request: web.Request):
 
 
 async def index(request: web.Request):
-    return web.FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
+    return web.FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-store, max-age=0"})  # Telegram eski sahifani keshlamasin
 
 
 def create_app(ctx: AppContext) -> web.Application:
