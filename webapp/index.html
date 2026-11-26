@@ -838,10 +838,14 @@ $("search").onclick = () => run($("search"), async () => {
   if (!state.me.passengers.length) { showTab("profile"); throw new Error(t("err_need_self")); }
   $("trip").classList.add("hidden"); state.train = null;
   $("trains").innerHTML = `<div class="spinner"></div>`;
-  const q = new URLSearchParams({ date: $("date").value, from_code: state.from.code, to_code: state.to.code });
+  // Qidiruv paytidagi sana va stansiyalar eslab qolinadi (botdagidek): keyin forma o'zgarsa ham, tanlangan reysning
+  // joylari, broni va kuzatuvi aynan shu qidiruv bo'yicha so'raladi
+  const search = { date: $("date").value, from: state.from, to: state.to };
+  const q = new URLSearchParams({ date: search.date, from_code: search.from.code, to_code: search.to.code });
   try {
     state.trains = (await api("/api/trains?" + q)).trains;
   } catch (e) { $("trains").innerHTML = ""; throw e; }
+  state.search = search;
   renderTrains();
 });
 
@@ -850,7 +854,7 @@ function renderTrains() {
   const shown = state.train ? [state.train] : state.trains;
   $("trains").innerHTML = (state.train
     ? `<div class="row between"><h2>${t("selected_train")}</h2><span class="chip" id="other-train">${t("other_train")}</span></div>`
-    : `<h2>${t("n_trains", { date: fmtDate($("date").value), n: state.trains.length })}</h2>`) + shown.map(tr => `
+    : `<h2>${t("n_trains", { date: fmtDate(state.search.date), n: state.trains.length })}</h2>`) + shown.map(tr => `
     <div class="card train ${state.train === tr ? "sel" : ""}" data-i="${state.trains.indexOf(tr)}">
       <div class="row between">
         <div class="times">${tr.departureDate.slice(-5)} → ${tr.arrivalDate.slice(-5)}</div>
@@ -891,8 +895,9 @@ function catBreakdown(cats) {
 }
 
 function tripBody(extra = {}) {
-  return { date: $("date").value, from_code: state.from.code, to_code: state.to.code, from_name: state.from.name,
-    to_name: state.to.name, train: state.train, categories: [...state.categories], passports: [...state.selected], ...extra };
+  const { date, from, to } = state.search;
+  return { date, from_code: from.code, to_code: to.code, from_name: from.name,
+    to_name: to.name, train: state.train, categories: [...state.categories], passports: [...state.selected], ...extra };
 }
 
 async function selectTrain(train) {
