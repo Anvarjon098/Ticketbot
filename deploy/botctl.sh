@@ -15,7 +15,7 @@ case "${1:-}" in
     setsid nohup bash -c '
       source deploy/env_noroot.sh
       while true; do
-        # Eski loglar logs/ papkasida saqlanadi (oxirgi 10 tasi) — keyin sababini ko'rish uchun
+        # Eski loglar logs papkasida saqlanadi (oxirgi 10 tasi)
         if [ -s bot.log ]; then
           mkdir -p logs && mv -f bot.log "logs/bot-$(date +%Y%m%d-%H%M%S).log"
           ls -1t logs/bot-*.log 2>/dev/null | tail -n +11 | xargs -r rm -f
