@@ -28,7 +28,7 @@ from monitor import Monitor, MonitorManager
 from passengers import validate_fields
 from categories import ORDER as CATEGORY_CODES
 from categories import describe, normalize as normalize_category, train_categories
-from site_auth import SiteSession, normalize_phone
+from site_auth import SessionStore, SiteSession, normalize_phone
 from users import UserStore
 from uzrail import UzRailClient, UzRailError
 
@@ -47,7 +47,7 @@ log = logging.getLogger(__name__)
 class AppContext:
     bot: Bot
     client: UzRailClient
-    session: SiteSession
+    sessions: SessionStore  # har bir foydalanuvchining o'z sayt akkaunti
     users: UserStore
     monitors: MonitorManager
     owner_id: int
@@ -79,8 +79,10 @@ MESSAGES = {
     "sorbon": ("Bu reys (Sorbon tizimi) hozircha qo'llab-quvvatlanmaydi.",
                "Этот рейс (система Sorbon) пока не поддерживается."),
     "pick_passenger": ("Kamida bitta yo'lovchini tanlang.", "Выберите хотя бы одного пассажира."),
-    "need_site": ("Avval bot egasi Profil bo'limida saytga kirishi kerak.",
-                  "Сначала владелец бота должен войти на сайт в разделе «Профиль»."),
+    "need_site": ("Avval Profil bo'limida eticket.uzrailpass.uz raqamingiz va parolingiz bilan saytga kiring — "
+                  "bron sizning akkauntingizdan qilinadi va o'zingiz saytda to'laysiz.",
+                  "Сначала войдите на сайт в разделе «Профиль» с номером и паролем eticket.uzrailpass.uz — "
+                  "бронь оформляется на ваш аккаунт, оплачиваете на сайте сами."),
     "sold_out_now": ("Afsuski, joylar band bo'lib qoldi. Kuzatuvga qo'yishingiz mumkin.",
                      "К сожалению, места уже заняты. Можно поставить поезд на отслеживание."),
     "pick_seats": ("Vagon sxemasida joylarni tanlang.", "Выберите места на схеме вагона."),
@@ -223,9 +225,12 @@ def chosen_categories(data: dict) -> list[str] | None:
     return sorted(set(codes), key=lambda c: CATEGORY_CODES.index(c) if c in CATEGORY_CODES else 99) or None
 
 
-def require_site_account(ctx: AppContext):
-    if not ctx.session.account:
+def require_site_account(ctx: AppContext, uid: int) -> SiteSession:
+    """Foydalanuvchining sayt akkaunti (bron va to'lov shu akkauntda); ulanmagan bo'lsa — xato."""
+    session = ctx.sessions.get(uid)
+    if not session.account:
         raise ApiError("need_site")
+    return session
 
 
 def monitor_info(m: Monitor) -> dict:
@@ -245,10 +250,8 @@ async def me(request: web.Request):
     return web.json_response({
         "phone": user.get("phone"),
         "is_owner": is_owner,
-        "site_linked": bool(ctx.session.account),
-        "site_status": ctx.session.status(lang_of(request)) if is_owner else None,
-        "card_number": user.get("card_number") if is_owner else None,
-        "card_holder": user.get("card_holder") if is_owner else None,
+        "site_linked": ctx.sessions.linked(uid),
+        "site_status": ctx.sessions.get(uid).status(lang_of(request)),
         "passengers": ctx.users.passengers(uid),
     })
 
@@ -278,14 +281,9 @@ async def tickets(request: web.Request):
     own = [m for m in ctx.monitors.monitors.values() if m.chat_id == uid]
     own.sort(key=lambda m: m.created, reverse=True)
     bookings = ctx.users.bookings(uid)
-    if uid == ctx.owner_id and ctx.proxy and ctx.public_url:  # bot egasi saytga qayta login qilmasdan to'laydi
+    if ctx.proxy and ctx.public_url:  # sayt foydalanuvchining o'z akkaunti bilan ochiladi — qayta login shart emas
         bookings = [{**b, "pay_url": site_proxy.pay_link(ctx.public_url, ctx.bot.token, b["order_id"],
                                                          b.get("expires_at"))} for b in bookings]
-    card = ctx.timers.card() if ctx.timers and uid != ctx.owner_id else None
-    if card:  # bot egasi to'laydigan bronlar: chipta pulini o'tkazish uchun karta
-        card = {"number": booking.format_card(card["number"]), "holder": card["holder"]}
-        bookings = [{**b, "card": card} if b.get("approval") == "pending" and not b.get("status") else b
-                    for b in bookings]
     return web.json_response({"bookings": bookings, "monitors": [monitor_info(m) for m in own]})
 
 
@@ -345,7 +343,7 @@ async def places(request: web.Request):
 
 async def book(request: web.Request):
     ctx, uid = request.app[CTX], request["user_id"]
-    require_site_account(ctx)
+    session = require_site_account(ctx, uid)
     data = await body(request)
     trip_date, from_code, to_code, train = trip_params(data)
     chosen = chosen_passengers(ctx, uid, data.get("passports"))
@@ -360,11 +358,11 @@ async def book(request: web.Request):
     choice = car_schemas.pick(places_now, data["car_key"], seats, data.get("tier"))
     if not choice:
         raise ApiError("seats_taken", 409)
-    order_id = await booking.reserve(ctx.client, ctx.session, train, choice, chosen)
+    order_id = await booking.reserve(ctx.client, session, train, choice, chosen)
     record = booking.booking_record(order_id, train, choice, chosen,
                                     str(data.get("from_name") or ""), str(data.get("to_name") or ""))
-    record["expires_at"] = await booking.payment_deadline(ctx.client, ctx.session, order_id)
-    if ctx.timers:  # saqlaydi va botda xabar beradi; boshqa foydalanuvchiniki — egasining tasdig'ini kutadi
+    record["expires_at"] = await booking.payment_deadline(ctx.client, session, order_id)
+    if ctx.timers:  # saqlaydi va botda xabar beradi («Saytda to'lash» tugmasi bilan)
         record = await ctx.timers.announce(uid, record, name=request.get("user_name"))
     else:
         ctx.users.add_booking(uid, record)
@@ -381,11 +379,8 @@ async def cancel_booking(request: web.Request):
     owner_uid, record = found
     if record.get("status") in ("cancelled", "failed"):
         raise ApiError("already_cancelled", 409)
-    if record.get("approval") and uid != ctx.owner_id:
-        raise ApiError("owner_manages", 403)
-    require_site_account(ctx)
     try:
-        await booking.cancel(ctx.client, ctx.session, order_id)
+        await booking.cancel(ctx.client, ctx.sessions.get(owner_uid), order_id)  # bron qilgan akkaunt bilan
     except booking.OrderNotActive as e:
         ctx.users.set_status(owner_uid, order_id, "failed")
         if ctx.timers:
@@ -428,7 +423,7 @@ async def clear_bookings(request: web.Request):
 
 async def start_monitor(request: web.Request):
     ctx, uid = request.app[CTX], request["user_id"]
-    require_site_account(ctx)
+    require_site_account(ctx, uid)
     data = await body(request)
     trip_date, _, _, train = trip_params(data)
     m = Monitor(
@@ -468,34 +463,24 @@ async def all_monitors(request: web.Request):
 
 
 async def site_login(request: web.Request):
-    ctx = require_owner(request)
+    """Foydalanuvchi o'z eticket akkauntini ulaydi: bron va to'lov shu akkauntdan bo'ladi."""
+    ctx, uid = request.app[CTX], request["user_id"]
     data = await body(request)
     try:
         phone = normalize_phone(str(data.get("phone") or ""))
     except ValueError:
         raise ApiError("bad_phone")
-    await ctx.session.set_account(phone, str(data.get("password") or ""))
-    return web.json_response({"site_status": ctx.session.status(lang_of(request))})
+    session = ctx.sessions.get(uid)
+    await session.set_account(phone, str(data.get("password") or ""))
+    return web.json_response({"site_status": session.status(lang_of(request)), "site_linked": True})
 
 
-async def owner_card(request: web.Request):
-    """Bot egasining to'lov kartasi: boshqa foydalanuvchilar chipta pulini shu kartaga o'tkazadi."""
-    ctx = require_owner(request)
-    data = await body(request)
-    number = re.sub(r"\D", "", str(data.get("number") or ""))
-    if number and len(number) != 16:
-        raise ApiError("bad_card")
-    holder = str(data.get("holder") or "").strip()[:60]
-    ctx.users.update(ctx.owner_id, card_number=number or None, card_holder=holder if number else None)
-    return web.json_response({"card_number": number or None, "card_holder": holder if number else None})
-
-
-async def transfer_done(request: web.Request):
-    """Foydalanuvchi: chipta pulini bot egasining kartasiga o'tkazdi — egasiga xabar boradi."""
+async def site_logout(request: web.Request):
+    """Sayt akkauntini uzadi (raqam, parol va token o'chiriladi)."""
     ctx, uid = request.app[CTX], request["user_id"]
-    if not ctx.timers or not await ctx.timers.report_transfer(request.match_info["order_id"], uid):
-        raise ApiError("booking_not_found", 404)
-    return web.json_response({"ok": True})
+    session = ctx.sessions.get(uid)
+    session.logout()
+    return web.json_response({"site_status": session.status(lang_of(request)), "site_linked": False})
 
 
 def _app_version() -> str:
@@ -530,7 +515,6 @@ def create_app(ctx: AppContext) -> web.Application:
     app.router.add_get("/api/monitors", all_monitors)
     app.router.add_delete("/api/monitors/{id}", delete_monitor)
     app.router.add_post("/api/bookings/{order_id}/cancel", cancel_booking)
-    app.router.add_post("/api/bookings/{order_id}/transferred", transfer_done)
     app.router.add_post("/api/bookings/clear-inactive", clear_bookings)
     app.router.add_delete("/api/bookings/{order_id}", delete_booking)
     app.router.add_get("/api/stations", stations)
@@ -539,7 +523,7 @@ def create_app(ctx: AppContext) -> web.Application:
     app.router.add_post("/api/book", book)
     app.router.add_post("/api/monitor", start_monitor)
     app.router.add_post("/api/site-login", site_login)
-    app.router.add_post("/api/owner-card", owner_card)
+    app.router.add_post("/api/site-logout", site_logout)
     app.router.add_static("/schemas", car_schemas.SCHEMA_DIR)  # vagon sxemalari (saytdan olingan SVG)
     if ctx.proxy:  # qolgan barcha manzillar — sayt (faqat imzoli havola orqali kirilganda)
         app.router.add_get("/sitepay/{order_id}", ctx.proxy.start_page)

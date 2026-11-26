@@ -22,3 +22,4 @@ bin/cloudflared
 .chromelibs/
 .aptcache/
 logs/
+site_accounts.json

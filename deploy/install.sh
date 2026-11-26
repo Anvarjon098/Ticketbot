@@ -20,7 +20,7 @@ mkdir -p "$APP_DIR"
 if [ "$SRC_DIR" != "$APP_DIR" ]; then
   # .env va *.json ma'lumot fayllari ustidan yozilmaydi
   rsync -a --exclude .git --exclude .venv --exclude .env \
-    --exclude account.json --exclude users.json --exclude monitors.json --exclude access.json \
+    --exclude account.json --exclude site_accounts.json --exclude users.json --exclude monitors.json --exclude access.json \
     --exclude site_token.txt --exclude '*.log' "$SRC_DIR/" "$APP_DIR/"
 fi
 

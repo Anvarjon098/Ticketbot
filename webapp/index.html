@@ -139,6 +139,10 @@
   <!-- ===================== BILET OLISH ===================== -->
   <section id="tab-buy">
     <h1 data-i18n="buy_title">Bilet olish</h1>
+    <div id="site-warn" class="card hidden" style="background:color-mix(in srgb, var(--warn) 14%, var(--card))">
+      <div data-i18n="need_site_note">⚠️ Bron qilish uchun avval Profil bo'limida o'z eticket.uzrailpass.uz akkauntingiz bilan saytga kiring.</div>
+      <button class="btn small" style="margin-top:8px" onclick="showTab('profile')" data-i18n="go_profile">Profilga o'tish</button>
+    </div>
     <div class="card">
       <div class="route">
         <label class="f" data-i18n="from">Qayerdan</label>
@@ -212,28 +216,17 @@
     <h2 data-i18n="my_data">Mening ma'lumotlarim</h2>
     <div id="self-card"></div>
     <div id="self-form" class="card hidden"></div>
-    <div id="site-block" class="hidden">
+    <div id="site-block">
       <h2 data-i18n="site_account">Sayt akkaunti (eticket.uzrailpass.uz)</h2>
       <div class="card">
         <div id="site-status" class="muted"></div>
+        <div class="muted" style="margin-top:6px" data-i18n="site_hint">Bron sizning akkauntingizdan qilinadi va chiptani «Saytda to'lash» orqali o'z kartangizdan to'laysiz.</div>
         <label class="f" data-i18n="phone">Telefon raqam</label>
         <input id="site-phone" type="tel" placeholder="+998901234567">
         <label class="f" data-i18n="password">Parol</label>
         <input id="site-password" type="password" data-i18n-ph="password_ph">
         <button class="btn secondary" id="site-login" data-i18n="site_login">Saytga kirish</button>
-      </div>
-      <h2 data-i18n="pay_card_h">To'lov kartasi</h2>
-      <div class="card">
-        <div class="muted" data-i18n="card_hint">Boshqa foydalanuvchilar bron qilganda ularga shu karta va chipta summasi yuboriladi.</div>
-        <div id="card-view"></div>
-        <div id="card-form">
-          <label class="f" data-i18n="card_number">Karta raqami</label>
-          <input id="card-number" inputmode="numeric" autocomplete="off" placeholder="8600 1234 5678 9012">
-          <label class="f" data-i18n="card_holder">Karta egasi</label>
-          <input id="card-holder" autocomplete="off" data-i18n-ph="card_holder_ph">
-          <button class="btn secondary" id="card-save" data-i18n="save">Saqlash</button>
-          <button class="btn secondary hidden" id="card-cancel" data-i18n="cancel">Bekor qilish</button>
-        </div>
+        <button class="btn danger hidden" id="site-logout" data-i18n="site_logout">Akkauntni uzish</button>
       </div>
     </div>
   </section>
@@ -291,7 +284,7 @@ const I18N = {
     not_found_text: "Boshqa vagon turini tanlang yoki kuzatuvga qo'ying.", car: "Vagon",
     consecutive: "ketma-ket", nearby: "yaqin joylar", total: "Jami narx", book: "✅ Bron qilish",
     wait_consecutive: "🔔 Ketma-ket joy chiqishini kutish",
-    booked_alert: "Bron qilindi! Vagon {car}, joylar: {seats}.\nTo'lovni saytda tezda amalga oshiring.",
+    booked_alert: "Bron qilindi! Vagon {car}, joylar: {seats}.\nChiptalar bo'limidagi «Saytda to'lash» tugmasi orqali o'z kartangizdan tezda to'lang.",
     monitor_alert: "Kuzatuv boshlandi. Har {s} sekundda tekshiriladi, joy chiqishi bilan bron qilib, botda xabar beraman.",
     monitor_alert_plain: "Kuzatuv boshlandi. Joy chiqishi bilan bron qilib, botda xabar beraman.",
     booked_h: "Bron qilingan", departure: "Jo'nash", arrival: "Yetib borish", seats: "Joylar", price: "Narx", service_fee: "Xizmat haqi",
@@ -324,6 +317,11 @@ const I18N = {
     no_phone: "Telefon raqam botda yuborilmagan",
     fill_once: "Bilet olish uchun o'z ma'lumotlaringizni bir marta kiriting.", enter_data: "Ma'lumotlarni kiritish",
     status: "Holat: {s}", logged_in: "Saytga kirildi ✅", wait: "Kuting...",
+    site_hint: "Bron sizning akkauntingizdan qilinadi va chiptani «Saytda to'lash» orqali o'z kartangizdan to'laysiz.",
+    site_logout: "Akkauntni uzish", logged_out: "Akkaunt uzildi", relogin: "Boshqa raqam bilan kirish",
+    confirm_logout: "Sayt akkauntini uzaymi? Raqam va parol botdan o'chiriladi.",
+    need_site_note: "⚠️ Bron qilish uchun avval Profil bo'limida o'z eticket.uzrailpass.uz akkauntingiz bilan saytga kiring.",
+    go_profile: "Profilga o'tish", login_wait: "Saytga kirilmoqda (20–40 soniya)...",
     open_in_tg: "Ilovani Telegram bot orqali oching.", fill_first: "Avval o'z ma'lumotlaringizni kiriting",
     error_n: "Xato ({n})",
     server_busy: "Server hozir javob bermadi (bot qayta ishga tushayotgan bo'lishi mumkin). Bir necha soniyadan keyin qayta urinib ko'ring.",
@@ -365,7 +363,7 @@ const I18N = {
     not_found_text: "Выберите другой тип вагона или поставьте поезд на отслеживание.", car: "Вагон",
     consecutive: "подряд", nearby: "рядом", total: "Итого", book: "✅ Забронировать",
     wait_consecutive: "🔔 Ждать места подряд",
-    booked_alert: "Забронировано! Вагон {car}, места: {seats}.\nОплатите на сайте как можно скорее.",
+    booked_alert: "Забронировано! Вагон {car}, места: {seats}.\nОплатите своей картой как можно скорее — кнопка «Оплатить на сайте» в разделе «Билеты».",
     monitor_alert: "Отслеживание запущено. Проверка каждые {s} сек.; как только появятся места — забронирую и сообщу в боте.",
     monitor_alert_plain: "Отслеживание запущено. Как только появятся места — забронирую и сообщу в боте.",
     booked_h: "Забронировано", departure: "Отправление", arrival: "Прибытие", seats: "Места", price: "Цена", service_fee: "Сервисный сбор",
@@ -398,6 +396,11 @@ const I18N = {
     no_phone: "Номер телефона не отправлен в боте",
     fill_once: "Чтобы покупать билеты, один раз заполните свои данные.", enter_data: "Заполнить данные",
     status: "Статус: {s}", logged_in: "Вход выполнен ✅", wait: "Подождите...",
+    site_hint: "Бронь оформляется на ваш аккаунт, билет оплачиваете сами своей картой через «Оплатить на сайте».",
+    site_logout: "Отвязать аккаунт", logged_out: "Аккаунт отвязан", relogin: "Войти с другим номером",
+    confirm_logout: "Отвязать аккаунт сайта? Номер и пароль будут удалены из бота.",
+    need_site_note: "⚠️ Чтобы бронировать, сначала войдите на сайт со своим аккаунтом eticket.uzrailpass.uz в разделе «Профиль».",
+    go_profile: "Перейти в профиль", login_wait: "Вход на сайт (20–40 секунд)...",
     open_in_tg: "Откройте приложение через Telegram-бота.", fill_first: "Сначала заполните свои данные",
     error_n: "Ошибка ({n})",
     server_busy: "Сервер сейчас не ответил (бот, возможно, перезапускается). Попробуйте через несколько секунд.",
@@ -587,38 +590,28 @@ function renderProfile() {
     $("self-card").innerHTML = "";
     passengerForm($("self-form"), { isSelf: true, initial: self, onDone: renderProfile });
   };
-  $("site-block").classList.toggle("hidden", !state.me.is_owner);
-  if (state.me.is_owner) {
-    if (!$("site-phone").value && state.me.phone) $("site-phone").value = "+" + state.me.phone;
-    $("site-status").textContent = t("status", { s: state.me.site_status });
-    renderCard(false);
-  }
+  if (!$("site-phone").value && state.me.phone) $("site-phone").value = "+" + state.me.phone;
+  $("site-status").textContent = t("status", { s: state.me.site_status });
+  // run() tugma matnini dataset.label dan tiklaydi — ikkalasini ham yangilaymiz
+  $("site-login").textContent = $("site-login").dataset.label = t(state.me.site_linked ? "relogin" : "site_login");
+  $("site-logout").classList.toggle("hidden", !state.me.site_linked);
+  renderSiteWarn();
 }
-// Saqlangan karta ko'rinadi, "Tahrirlash" — forma; karta hali kiritilmagan bo'lsa forma darhol ochiq
-function renderCard(editing) {
-  const number = (state.me.card_number || "").replace(/(\d{4})(?=\d)/g, "$1 ");
-  const open = editing || !number;
-  $("card-form").classList.toggle("hidden", !open);
-  $("card-cancel").classList.toggle("hidden", !number);
-  $("card-view").innerHTML = open ? "" : `
-    <div class="kv"><span>${t("card_number")}</span><span><b>${esc(number)}</b></span></div>
-    ${state.me.card_holder ? `<div class="kv"><span>${t("card_holder")}</span><span>${esc(state.me.card_holder)}</span></div>` : ""}
-    <button class="btn small secondary" style="margin-top:8px" id="card-edit">${t("edit")}</button>`;
-  if (open) { $("card-number").value = number; $("card-holder").value = state.me.card_holder || ""; }
-  else $("card-edit").onclick = () => { haptic(); renderCard(true); $("card-number").focus(); };
-}
-$("card-cancel").onclick = () => renderCard(false);
-$("card-save").onclick = () => run($("card-save"), async () => {
-  const res = await api("/api/owner-card", { method: "POST", body: { number: $("card-number").value, holder: $("card-holder").value } });
-  Object.assign(state.me, res);
-  renderProfile(); haptic(); toast(t("card_saved"));
-});
+function renderSiteWarn() { $("site-warn").classList.toggle("hidden", !!state.me?.site_linked); }
 $("site-login").onclick = () => run($("site-login"), async () => {
+  toast(t("login_wait"));
   const res = await api("/api/site-login", { method: "POST", body: { phone: $("site-phone").value, password: $("site-password").value } });
   $("site-password").value = "";
-  state.me.site_status = res.site_status; state.me.site_linked = true;
+  Object.assign(state.me, res);
   renderProfile(); toast(t("logged_in"));
 });
+$("site-logout").onclick = () => {
+  const go = () => run($("site-logout"), async () => {
+    Object.assign(state.me, await api("/api/site-logout", { method: "POST" }));
+    renderProfile(); haptic(); toast(t("logged_out"));
+  });
+  tg?.showConfirm ? tg.showConfirm(t("confirm_logout"), ok => ok && go()) : (confirm(t("confirm_logout")) && go());
+};
 
 // ---------- HAMROHLAR ----------
 function renderCompanions() {
@@ -714,17 +707,14 @@ async function loadTickets() {
         ? `<span class="chip" id="clear-inactive">🧹 ${t("clear_inactive", { n: inactive })}</span>` : ""}</div>` + bookings.map(b => {
         // muddati brauzerda tugagan, server hali belgilamagan bo'lsa ham — "tugagan" deb ko'rsatamiz
         const status = b.status || (b.expires_at && b.expires_at * 1000 <= Date.now() ? "expired" : null);
-        // boshqa foydalanuvchining broni: bot egasi tasdiqlab to'laydi — to'lov va bekor qilish tugmalari yo'q
-        const managed = !!b.approval;
-        const badge = { cancelled: ["no", b.approval === "rejected" ? "st_rejected" : "st_cancelled"], failed: ["no", "st_failed"],
-          expired: ["no", "st_expired"], paid: ["ok", "st_paid"] }[status]
-          || (managed ? (b.approval === "approved" ? ["info", "st_approved"] : ["warn", "st_pending"]) : null);
+        const badge = { cancelled: ["no", "st_cancelled"], failed: ["no", "st_failed"],
+          expired: ["no", "st_expired"], paid: ["ok", "st_paid"] }[status];
         return `
         <div class="card" style="${status && status !== "paid" ? "opacity:.6" : ""}">
           <div class="row between"><div class="big">${esc(b.from_name)} → ${esc(b.to_name)}</div>
             ${badge ? `<span class="badge ${badge[0]}">${t(badge[1])}</span>` : `<span class="badge info">${esc(b.train_number)}</span>`}</div>
           ${!status && b.expires_at ? `<div class="row between" style="margin:8px 0; padding:10px 12px; border-radius:10px; background:color-mix(in srgb, var(--warn) 14%, transparent)">
-            <span>⏳ ${t(managed ? "hold_left" : "pay_left")}</span>
+            <span>⏳ ${t("pay_left")}</span>
             <span><b class="times" data-expires="${b.expires_at}">${leftText(b.expires_at)}</b>
               <span class="muted"> · ${t("until", { time: new Date(b.expires_at * 1000).toTimeString().slice(0, 5) })}</span></span></div>` : ""}
           <div class="muted">${esc(b.brand)}</div>
@@ -735,18 +725,7 @@ async function loadTickets() {
           <div class="kv"><span>${t("passengers")}</span><span>${b.passengers.map(esc).join("<br>")}</span></div>
           <div class="kv"><span>${t("order")}</span><span>${esc(b.order_id)}</span></div>
           <div class="kv"><span>${t("price")}</span><span>≈ ${money(b.price)}</span></div>
-          ${b.service_fee ? `<div class="kv"><span>${t("service_fee")}</span><span>${money(b.service_fee)}</span></div>
-          <div class="kv"><span>${t("total")}</span><span><b>≈ ${money((b.price || 0) + b.service_fee)}</b></span></div>` : ""}
-          ${!status && b.card ? `<div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:var(--soft)">
-            <div class="big">${t("transfer_h")}</div>
-            <div class="kv"><span>${t("amount")}</span><span><b>≈ ${money((b.price || 0) + (b.service_fee || 0))}</b></span></div>
-            <div class="kv"><span>${t("card_number")}</span><span><b class="times">${esc(b.card.number)}</b></span></div>
-            ${b.card.holder ? `<div class="kv"><span>${t("card_holder")}</span><span>${esc(b.card.holder)}</span></div>` : ""}
-            <div style="display:flex; justify-content:flex-end; margin-top:10px">
-              <button class="btn small secondary" style="background:var(--card)" data-copy="${esc(b.card.number.replace(/\s/g, ""))}">📋 ${t("copy")}</button></div>
-            <div class="muted" style="margin-top:8px">${t(b.transfer_reported ? "transfer_reported" : "transfer_note")}</div>
-            ${b.transfer_reported ? "" : `<button class="btn" style="margin-top:10px" data-transferred="${esc(b.order_id)}">✅ ${t("transfer_done")}</button>`}</div>` : ""}
-          ${status || b.card ? "" : managed ? `<div class="muted" style="margin-top:10px">${t(b.approval === "approved" ? "approved_note" : "pending_note")}</div>` : `
+          ${status ? "" : `
           <button class="btn" data-pay="${esc(b.pay_url)}">${t("pay")}</button>
           <button class="btn danger" data-cancel-order="${esc(b.order_id)}">${t("cancel_booking")}</button>`}
           ${status && status !== "paid" ? `<button class="btn danger" data-remove-order="${esc(b.order_id)}">🗑 ${t("remove_booking")}</button>` : ""}
@@ -758,12 +737,6 @@ async function loadTickets() {
     $("tickets").innerHTML = html || `<div class="card empty"><div class="ico">🎟</div>${t("no_tickets")}<br>
       <button class="btn" style="margin-top:14px" onclick="showTab('buy')">${t("buy_title")}</button></div>`;
     $("tickets").querySelectorAll("[data-pay]").forEach(b => b.onclick = () => tg?.openLink ? tg.openLink(b.dataset.pay) : open(b.dataset.pay));
-    $("tickets").querySelectorAll("[data-copy]").forEach(b => b.onclick = () =>
-      navigator.clipboard?.writeText(b.dataset.copy).then(() => { haptic(); toast(t("copied")); }));
-    $("tickets").querySelectorAll("[data-transferred]").forEach(b => b.onclick = () => run(b, async () => {
-      await api("/api/bookings/" + encodeURIComponent(b.dataset.transferred) + "/transferred", { method: "POST" });
-      tg?.HapticFeedback?.notificationOccurred("success"); toast(t("transfer_sent")); loadTickets();
-    }));
     $("tickets").querySelectorAll("[data-remove-order]").forEach(b => b.onclick = () => run(b, async () => {
       await api("/api/bookings/" + encodeURIComponent(b.dataset.removeOrder), { method: "DELETE" });
       haptic(); toast(t("removed_ok")); loadTickets();
@@ -1038,7 +1011,7 @@ function renderCarPicker(box, n) {
     try {
       const { booking } = await api("/api/book", { method: "POST", body: tripBody({ car_key: car.key, seats: state.picked, tier: carTier(car) }) });
       tg?.HapticFeedback?.notificationOccurred("success");
-      alertThen(t(booking.approval ? "booked_pending_alert" : "booked_alert", { car: booking.car_number, seats: booking.seats.join(", ") }),
+      alertThen(t("booked_alert", { car: booking.car_number, seats: booking.seats.join(", ") }),
         () => showTab("tickets"));
     } catch (e) {
       if (e.status === 409) await reloadPlaces();  // joy band bo'lib qolgan — sxemani yangilaymiz
@@ -1155,6 +1128,7 @@ async function drawScheme(car, n) {
     return;
   }
   $("nav-monitors").classList.toggle("hidden", !state.me.is_owner);
+  renderSiteWarn();
   if (!state.me.passengers.length) { showTab("profile"); toast(t("fill_first")); }
 })();
 </script>

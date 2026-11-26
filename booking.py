@@ -1,6 +1,8 @@
-"""Bron qilish: joy topish, saytga yuborish va natijani yozib qo'yish (bot, ilova va kuzatuv uchun umumiy)."""
+"""Bron qilish: joy topish, saytga yuborish va natijani yozib qo'yish (bot, ilova va kuzatuv uchun umumiy).
+
+Har bir bron foydalanuvchining o'z sayt akkaunti (SiteSession) bilan qilinadi va u o'zi saytda to'laydi.
+"""
 import logging
-import re
 import time
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -149,22 +151,14 @@ def booking_record(order_id: str, train: dict, choice: SeatChoice, passengers: l
     }
 
 
-SERVICE_FEE = 50_000  # kuzatuv orqali avtomatik bron qilingan chipta uchun xizmat haqi (so'm)
-
-
 def som(value: int) -> str:
     return f"{value:,}".replace(",", " ") + " so'm"
 
 
-def total_price(b: dict) -> int:
-    """To'lanadigan summa: chipta narxi + xizmat haqi (kuzatuv orqali bron bo'lsa)."""
-    return (b.get("price") or 0) + (b.get("service_fee") or 0)
-
-
 def booking_text(b: dict, with_pay: bool = True, pay_button: bool = False) -> str:
-    """Bron tafsilotlari; with_pay=False — to'lov havolasisiz (to'lovni bot egasi qiladigan foydalanuvchi uchun).
+    """Bron tafsilotlari; with_pay=False — to'lov havolasisiz (yakunlangan bron).
 
-    pay_button=True — havola o'rniga xabar ostidagi "Saytda to'lash" tugmasi (bot egasining akkaunti bilan).
+    pay_button=True — havola o'rniga xabar ostidagi "Saytda to'lash" tugmasi (foydalanuvchining o'z akkaunti bilan).
     """
     text = (
         f"Poyezd {b['train_number']} {b['brand']}, {b['from_name']} → {b['to_name']}\n"
@@ -175,54 +169,17 @@ def booking_text(b: dict, with_pay: bool = True, pay_button: bool = False) -> st
     )
     if b.get("price"):
         text += f"\nNarxi: ≈ {som(b['price'])}"
-    if b.get("service_fee"):
-        text += f"\nXizmat haqi: {som(b['service_fee'])}\nJami: ≈ {som(total_price(b))}"
     if not with_pay:
         return text
     if pay_button:
-        return (text + "\n\n⏳ Bron vaqtinchalik — pastdagi «💳 Saytda to'lash» tugmasi bilan tezda to'lang "
-                       "(sayt akkauntingiz bilan ochiladi).")
+        return (text + "\n\n⏳ Bron vaqtinchalik — pastdagi «💳 Saytda to'lash» tugmasi bilan tezda o'z kartangizdan "
+                       "to'lang (sayt sizning akkauntingiz bilan ochiladi).")
     return (text + "\n\n⏳ Bron vaqtinchalik — to'lovni saytda tezda amalga oshiring:\n"
             f"{b['pay_url']}\n"
             f"yoki {BASE_URL}/uz/cabinet/orders")
 
 
 def with_pay_button(markup: InlineKeyboardMarkup, url: str) -> InlineKeyboardMarkup:
-    """Tugmalar ustiga "Saytda to'lash" (sayt akkaunti bilan ochiladigan havola) qo'shadi."""
+    """Tugmalar ustiga "Saytda to'lash" (foydalanuvchining sayt akkaunti bilan ochiladigan havola) qo'shadi."""
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💳 Saytda to'lash", url=url)],
                                                  *markup.inline_keyboard])
-
-
-def approval_markup(order_id: str, paid: bool = False) -> InlineKeyboardMarkup:
-    """Boshqa foydalanuvchining broni: bot egasi pulni olib saytda to'laydi yoki rad etadi.
-
-    paid=True — saytda to'langan: faqat "Tasdiqlash" (chipta PDF egasiga yuboriladi). Tasdiqlash tugmasi
-    to'lovdan oldin ko'rsatilmaydi.
-    """
-    if paid:
-        return InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="✅ Tasdiqlash — chiptani yuborish", callback_data=f"apr:{order_id}"[:60])]])
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="💳 Karta raqamini yuborish", callback_data=f"crd:{order_id}"[:60]),
-        InlineKeyboardButton(text="❌ Rad etish", callback_data=f"rej:{order_id}"[:60]),
-    ]])
-
-
-def transfer_markup(order_id: str) -> InlineKeyboardMarkup:
-    """Foydalanuvchi: chipta pulini kartaga o'tkazgach bot egasiga xabar beradi."""
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="✅ To'lov qildim", callback_data=f"tpd:{order_id}"[:60])]])
-
-
-def format_card(number: str) -> str:
-    digits = re.sub(r"\D", "", number or "")
-    return " ".join(digits[i:i + 4] for i in range(0, len(digits), 4))
-
-
-def card_text(record: dict, card: dict) -> str:
-    """Foydalanuvchiga: chipta pulini bot egasining kartasiga o'tkazish."""
-    price = som(total_price(record))
-    holder = f"\nKarta egasi: {card['holder']}" if card.get("holder") else ""
-    return (f"💳 Chipta puli: ≈ {price}\n"
-            f"Karta: {format_card(card['number'])}{holder}\n\n"
-            "Pulni shu kartaga o'tkazing. Bot egasi chiptani saytda to'lab tasdiqlagach, chipta shu yerga yuboriladi.")

@@ -1,4 +1,4 @@
-"""Saytni bot egasining akkaunti bilan ochish ("💳 Saytda to'lash" tugmasi).
+"""Saytni bron qilgan foydalanuvchining o'z akkaunti bilan ochish ("💳 Saytda to'lash" tugmasi).
 
 Sayt login tokenini faqat sessionStorage da saqlaydi — har bir yangi tabda u bo'sh, shuning uchun
 oddiy havola har safar login so'raydi. Boshqa domendan saytning sessionStorage iga yozib bo'lmaydi,
@@ -14,8 +14,9 @@ aks holda sahifa bo'sh qoladi. (/pages/current-order esa to'lovdan keyingi chipt
 Saytning API va websocket manzillari nisbiy (host: "", wsurl: "/ws"), shuning uchun sayt kodi
 o'zgartirilmasdan ishlaydi.
 
-Havola imzolangan va muddatli (faqat bot egasiga yuboriladi); proksi faqat shu havola orqali
-o'rnatilgan cookie bilan ishlaydi — begona odam proksidan foydalana olmaydi.
+Havola imzolangan va muddatli (faqat bron egasiga yuboriladi) — sayt shu bronni qilgan foydalanuvchining
+akkaunti bilan ochiladi; proksi faqat shu havola orqali o'rnatilgan cookie bilan ishlaydi — begona odam
+proksidan foydalana olmaydi.
 """
 import asyncio
 import hashlib
@@ -23,6 +24,7 @@ import hmac
 import json
 import logging
 import time
+from typing import Callable
 
 import aiohttp
 from aiohttp import web
@@ -48,7 +50,7 @@ def _sign(secret: str, message: str) -> str:
 
 
 def pay_link(base_url: str, secret: str, order_id: str, expires_at: float | None) -> str:
-    """Bot egasi uchun imzolangan havola: saytni uning akkaunti bilan shu bron sahifasida ochadi."""
+    """Bron egasi uchun imzolangan havola: saytni uning akkaunti bilan shu bron sahifasida ochadi."""
     exp = int((expires_at or time.time()) + LINK_GRACE)
     return f"{base_url.rstrip('/')}/sitepay/{order_id}?e={exp}&s={_sign(secret, f'pay:{order_id}:{exp}')}"
 
@@ -69,8 +71,9 @@ def is_site_path(path: str) -> bool:
 
 
 class SiteProxy:
-    def __init__(self, secret: str, session: SiteSession, client: UzRailClient):
-        self.secret, self.session, self.client = secret, session, client
+    def __init__(self, secret: str, session_for: Callable[[str], SiteSession], client: UzRailClient):
+        """session_for(order_id) — shu bronni qilgan foydalanuvchining sayt akkaunti."""
+        self.secret, self.session_for, self.client = secret, session_for, client
         self._http: aiohttp.ClientSession | None = None
 
     def http(self) -> aiohttp.ClientSession:
@@ -93,7 +96,7 @@ class SiteProxy:
                 and hmac.compare_digest(sig, _sign(self.secret, f"pay:{order_id}:{exp}"))):
             return web.Response(text="Havola eskirgan — botdagi bron xabaridan qayta oching.", status=403)
         try:
-            token = await self.session.get_token()
+            token = await self.session_for(order_id).get_token()
             order = await self.client.order_snapshot(token, order_id)
         except UzRailError as e:
             return web.Response(text=str(e), status=503)

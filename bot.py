@@ -8,7 +8,6 @@ from datetime import datetime, date, timedelta
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
-from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -23,11 +22,11 @@ import site_proxy
 import webapp
 from access import AccessStore
 from car_render import CarRenderer
-from timers import BookingTimers, is_paid
+from timers import BookingTimers
 from monitor import Monitor, MonitorManager
 from passengers import GENDER_LABEL, doc_type_label, guess_doc_type, parse_passenger_text
 from categories import describe, train_categories
-from site_auth import SiteSession, normalize_phone
+from site_auth import SessionStore, normalize_phone
 from users import UserStore
 from uzrail import Passenger, UzRailClient, UzRailError
 
@@ -42,7 +41,7 @@ WEBAPP_URL: str | None = None  # main() da aniqlanadi (WEBAPP_URL yoki cloudflar
 
 router = Router()
 client = UzRailClient()
-session = SiteSession()
+sessions = SessionStore(OWNER_ID)  # har bir foydalanuvchining o'z eticket akkaunti
 users = UserStore()
 renderer = CarRenderer()  # vagon sxemasi rasmi
 monitors: MonitorManager  # main() da yaratiladi
@@ -54,9 +53,13 @@ MENU_TICKETS = "🎟 Chiptalarim"
 MENU_MONITORS = "🔔 Kuzatuvlarim"
 MENU_STATUS = "ℹ️ Holat"
 MENU_LOGIN = "🔑 Saytga kirish"
+MENU_PROFILE = "👤 Profil"
 MENU_USERS = "👥 Foydalanuvchilar"
 MENU_ADMIN = "🛠 Admin panel"
 MENU_CANCEL = "❌ Bekor qilish"
+NEED_LOGIN = ("⚠️ Avval o'z <b>eticket.uzrailpass.uz</b> akkauntingiz bilan saytga kiring: "
+              f"<b>{MENU_PROFILE}</b> → <b>🔑 Saytga kirish</b>.\n"
+              "Bron sizning akkauntingizdan qilinadi va chiptani o'zingiz saytda to'laysiz.")
 
 # (tugma matni, saytdagi stansiya nomi)
 POPULAR_STATIONS = [("Toshkent", "TOSHKENT"), ("Samarqand", "SAMARQAND"), ("Buxoro", "BUXORO"),
@@ -106,13 +109,13 @@ def main_menu(user_id: int) -> ReplyKeyboardMarkup:
     kb.button(text=MENU_TICKETS)
     kb.button(text=MENU_MONITORS)
     kb.button(text=MENU_STATUS)
+    kb.button(text=MENU_PROFILE)
     if user_id == OWNER_ID:
         if WEBAPP_URL:  # bosilganda xabarsiz, darhol admin ilovasi ochiladi (kalit — webapp.admin_key)
             url = f"{WEBAPP_URL.rstrip('/')}/admin?k={webapp.admin_key(BOT_TOKEN, OWNER_ID)}"
             kb.button(text=MENU_ADMIN, web_app=WebAppInfo(url=url))
         else:
             kb.button(text=MENU_ADMIN)
-        kb.button(text=MENU_LOGIN)
     kb.button(text=MENU_CANCEL)
     kb.adjust(*([1] if WEBAPP_URL else []), 1, 2, 2, 2)
     return kb.as_markup(resize_keyboard=True)
@@ -206,7 +209,7 @@ async def not_allowed(message: Message):
         f"👤 Yangi foydalanuvchi botdan foydalanmoqchi:\n<b>{html.escape(user.full_name)}</b>{html.escape(username)}\n"
         f"ID: <code>{user.id}</code>\n\n"
         "Ruxsat bersangiz, u bilet olishi va kuzatuv qo'yishi mumkin bo'ladi "
-        "(bronlar sizning sayt akkauntingiz orqali qilinadi).",
+        "(o'z sayt akkaunti bilan bron qiladi va o'zi to'laydi).",
         reply_markup=access_keyboard(user.id))
 
 
@@ -287,13 +290,15 @@ async def got_contact(message: Message, state: FSMContext):
         return
     phone = normalize_phone(message.contact.phone_number)
     users.update(message.from_user.id, phone=phone)
-    if message.from_user.id == OWNER_ID and not session.account:
+    if not sessions.linked(message.from_user.id):
         kb = InlineKeyboardBuilder()
         kb.button(text="⏭ Keyinroq", callback_data="skip_login")
         await message.answer(f"✅ Raqam saqlandi: +{phone}", reply_markup=main_menu(message.from_user.id))
         await message.answer(
-            "Bot saytga shu raqam orqali kiradi. <b>eticket.uzrailpass.uz</b> dagi parolingizni yuboring "
-            "(xabar darhol o'chiriladi):",
+            "Bron sizning <b>eticket.uzrailpass.uz</b> akkauntingizdan qilinadi va chiptani o'zingiz saytda "
+            "to'laysiz. Saytga shu raqam bilan kiraman — saytdagi parolingizni yuboring "
+            "(xabar darhol o'chiriladi).\n\nSaytda akkaunt bo'lmasa, avval eticket.uzrailpass.uz da ro'yxatdan "
+            "o'ting yoki boshqa raqam bilan kirish uchun <b>⏭ Keyinroq</b> → <b>👤 Profil</b>.",
             reply_markup=kb.as_markup(),
         )
         await state.update_data(phone=phone)
@@ -313,7 +318,8 @@ async def contact_expected(message: Message):
 @router.callback_query(Reg.site_password, F.data == "skip_login")
 async def skip_login(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    await call.message.edit_text(f"Mayli. Keyinroq <b>{MENU_LOGIN}</b> tugmasi orqali kirishingiz mumkin.")
+    await call.message.edit_text(f"Mayli. Keyinroq <b>{MENU_PROFILE}</b> → <b>🔑 Saytga kirish</b> orqali "
+                                 "kirishingiz mumkin. Saytga kirmaguncha bron va kuzatuv ishlamaydi.")
 
 
 # ---------- menyu tugmalari (istalgan holatda ishlaydi) ----------
@@ -347,9 +353,9 @@ def admin_panel():
     if WEBAPP_URL:  # pastki menyu tugmasidan ochilgan ilovaga Telegram foydalanuvchi ma'lumotini bermaydi
         kb.button(text="🛠 Admin panelni ochish", web_app=WebAppInfo(url=WEBAPP_URL.rstrip("/") + "/admin"))
     kb.button(text=MENU_USERS, callback_data="adm:users")
-    kb.button(text=MENU_LOGIN, callback_data="adm:login")
+    kb.button(text="🔑 Mening sayt akkauntim", callback_data="adm:login")
     kb.adjust(*([1] if WEBAPP_URL else []), 2)
-    return (f"🛠 <b>Admin panel</b>\n\nSayt: {html.escape(session.status())}\n"
+    return (f"🛠 <b>Admin panel</b>\n\nSayt (sizning akkauntingiz): {html.escape(sessions.get(OWNER_ID).status())}\n"
             f"Foydalanuvchilar: {len(ALLOWED_IDS - {OWNER_ID})} ta ruxsat berilgan"), kb.as_markup()
 
 
@@ -411,6 +417,7 @@ def user_card(uid: int):
             f"ID <code>{uid}</code>\n"
             f"Telefon: {'+' + user['phone'] if user.get('phone') else '—'}\n"
             f"Holat: {status}\n"
+            f"Sayt akkaunti: {html.escape(sessions.get(uid).status())}\n"
             f"Bronlar: {len(user.get('bookings', []))} ta\n\n"
             f"<b>Yo'lovchilar:</b>\n{plist}")
     kb = InlineKeyboardBuilder()
@@ -454,7 +461,7 @@ async def admin_nav(call: CallbackQuery, state: FSMContext):
     await call.answer()
     action = call.data.split(":", 1)[1]
     if action == "login":
-        await ask_site_login(call.message, state)
+        await ask_site_login(call.message, state, call.from_user.id)
         return
     text, markup = admin_panel() if action == "home" else users_list()
     await call.message.edit_text(text, reply_markup=markup)
@@ -590,9 +597,11 @@ async def admin_edit_passenger(message: Message, state: FSMContext):
 @router.message(F.text == MENU_STATUS)
 @router.message(Command("status"))
 async def status(message: Message):
+    own = [m for m in monitors.active() if m.chat_id == message.from_user.id]
     await message.answer(
-        f"Sayt akkaunti: {html.escape(session.status())}\n"
-        f"Faol kuzatuvlar: {len(monitors.active())} (umumiy tezlik: {1 / POLL_INTERVAL:g} so'rov/sek)"
+        f"Sayt akkauntingiz: {html.escape(sessions.get(message.from_user.id).status())}\n"
+        f"Faol kuzatuvlaringiz: {len(own)} (barcha kuzatuvlar: {len(monitors.active())}, umumiy tezlik: "
+        f"{1 / POLL_INTERVAL:g} so'rov/sek)"
     )
 
 
@@ -638,7 +647,7 @@ async def list_bookings(message: Message):
             await message.answer(labels[status] + "\n" + html.escape(booking.booking_text(b).split("\n\n")[0]),
                                  reply_markup=remove_markup(b["order_id"]) if booking.is_inactive(b) else None)
             continue
-        text, markup = timers.view(b, message.chat.id)  # foydalanuvchining tasdiq kutayotgan broni — to'lovsiz
+        text, markup = timers.view(b, message.chat.id)  # «Saytda to'lash» va «Bekor qilish» tugmalari bilan
         sent = await message.answer(text, parse_mode=None, reply_markup=markup)
         if b.get("expires_at"):
             timers.start(message.chat.id, sent.message_id, b["order_id"])
@@ -695,10 +704,10 @@ def _find_own_booking(user_id: int, order_prefix: str) -> tuple[int, dict] | Non
     return None
 
 
-async def cancel_order(call: CallbackQuery, owner_id: int, b: dict, approval: str | None = None) -> bool:
-    """Bronni saytda bekor qiladi va barcha bot xabarlarini (foydalanuvchida ham) yakunlaydi."""
+async def cancel_order(call: CallbackQuery, owner_id: int, b: dict) -> bool:
+    """Bronni saytda (bron qilgan foydalanuvchining akkaunti bilan) bekor qiladi va bot xabarlarini yakunlaydi."""
     try:
-        await booking.cancel(client, session, b["order_id"])
+        await booking.cancel(client, sessions.get(owner_id), b["order_id"])
     except booking.OrderNotActive as e:
         users.set_status(owner_id, b["order_id"], "failed")
         await timers.finalize(b["order_id"])
@@ -710,106 +719,16 @@ async def cancel_order(call: CallbackQuery, owner_id: int, b: dict, approval: st
             f"❌ Bekor qilib bo'lmadi: {html.escape(str(e))}\n"
             "To'langan chiptani saytning o'zida qaytarish kerak (Buyurtmalarim → Qaytarish).")
         return False
-    if approval:
-        users.update_booking(owner_id, b["order_id"], approval=approval)
     users.mark_cancelled(owner_id, b["order_id"])
     await timers.finalize(b["order_id"])
     return True
 
 
-# ---------- boshqa foydalanuvchilarning bronlarini tasdiqlash (bot egasi) ----------
-
-def _awaiting_ticket(call: CallbackQuery) -> tuple[int, dict] | None:
-    """Chiptasi hali yuborilmagan (to'lanmagan yoki to'langan) boshqa foydalanuvchi broni."""
-    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
-    if found and found[1].get("approval") == "pending" and found[1].get("status") in (None, "paid"):
-        return found
-    return None
-
-
-@router.callback_query(F.data.startswith("apr:"), F.from_user.id == OWNER_ID)
-async def approve_booking(call: CallbackQuery):
-    """Bot egasi saytda to'lagan (tugma faqat to'lovdan keyin chiqadi) — chipta PDF ini egasiga yuboradi."""
-    found = _awaiting_ticket(call)
-    if not found:
-        await call.answer("Bron topilmadi yoki allaqachon yakunlangan", show_alert=True)
-        return
-    b = found[1]
-    if b.get("status") != "paid":  # eski xabardagi tugma — saytdan tekshiramiz
-        lifecycle = await timers.lifecycle(b["order_id"])
-        if not is_paid(lifecycle):
-            await call.answer(f"Sayt bu bronni hali to'langan deb ko'rsatmayapti (holat: {lifecycle or 'nomalum'}). "
-                              "Avval «💳 Saytda to'lash» orqali to'lang.", show_alert=True)
-            return
-        users.set_status(found[0], b["order_id"], "paid")
-        await timers.finalize(b["order_id"])  # PDF hali tayyor bo'lmasa ham "Tasdiqlash" tugmasi qolsin
-    await call.answer("Chipta yuborilmoqda...")
-    try:
-        sent = await timers.deliver(b["order_id"])
-    except (UzRailError, TelegramAPIError) as e:
-        await call.message.answer(f"❌ Chipta yuborilmadi: {html.escape(str(e))}\n«✅ Tasdiqlash» ni qayta bosing.")
-        return
-    await call.message.answer("✅ Chipta (PDF) egasiga yuborildi." if sent else
-                              "⚠️ Sayt chipta PDF faylini hali bermadi — biroz kutib «✅ Tasdiqlash» ni qayta bosing.")
-
-
-@router.callback_query(F.data.startswith("crd:"), F.from_user.id == OWNER_ID)
-async def send_card(call: CallbackQuery):
-    found = _awaiting_ticket(call)
-    if not found or found[1].get("status"):
-        await call.answer("Bron topilmadi yoki allaqachon yakunlangan", show_alert=True)
-        return
-    if not timers.card():
-        await call.answer("Karta raqamingiz kiritilmagan: Ilova → Profil → To'lov kartasi", show_alert=True)
-        return
-    try:
-        await timers.send_card(found[1]["order_id"])
-    except TelegramAPIError as e:
-        await call.answer(f"Yuborilmadi: {e}", show_alert=True)
-        return
-    await call.answer("Karta raqami yuborildi")
-
-
-@router.callback_query(F.data.startswith("tpd:"))
-async def transfer_done(call: CallbackQuery):
-    """Foydalanuvchi chipta pulini bot egasining kartasiga o'tkazdi."""
-    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
-    if not found or not await timers.report_transfer(found[1]["order_id"], call.from_user.id):
-        await call.answer("Bron topilmadi, yakunlangan yoki xabar allaqachon berilgan", show_alert=True)
-        return
-    await call.answer("Bot egasiga xabar berildi — u tekshirib, chiptani to'laydi", show_alert=True)
-    try:  # alohida karta xabaridagi tugma (bron xabarini refresh() allaqachon yangilagan)
-        await call.message.edit_reply_markup(reply_markup=None)
-    except TelegramAPIError:
-        pass
-
-
-@router.callback_query(F.data.startswith("rej:"), F.from_user.id == OWNER_ID)
-async def reject_booking_ask(call: CallbackQuery):
-    prefix = call.data.split(":", 1)[1]
-    kb = InlineKeyboardBuilder()
-    kb.button(text="✅ Ha, rad etish", callback_data=f"rjy:{prefix}"[:60])
-    kb.button(text="↩️ Yo'q", callback_data=f"rjn:{prefix}"[:60])
-    kb.adjust(2)
-    await call.answer()
-    await call.message.edit_reply_markup(reply_markup=kb.as_markup())
-
-
-@router.callback_query(F.data.startswith("rjn:"), F.from_user.id == OWNER_ID)
-async def reject_booking_no(call: CallbackQuery):
-    await call.answer()
-    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])  # "Saytda to'lash" ham qaytadi
-    await call.message.edit_reply_markup(reply_markup=timers.view(found[1], call.message.chat.id)[1] if found else None)
-
-
-@router.callback_query(F.data.startswith("rjy:"), F.from_user.id == OWNER_ID)
-async def reject_booking_yes(call: CallbackQuery):
-    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
-    if not found or found[1].get("status"):
-        await call.answer("Bron topilmadi yoki allaqachon yakunlangan", show_alert=True)
-        return
-    await call.answer("Rad etilmoqda...")
-    await cancel_order(call, found[0], found[1], approval="rejected")
+@router.callback_query(F.data.regexp(r"^(apr|crd|tpd|rej|rjy|rjn):"))
+async def old_approval_button(call: CallbackQuery):
+    """Eski xabarlardagi tugmalar (bot egasi tasdiqlashi va karta orqali to'lov endi yo'q)."""
+    await call.answer("Bu tugma eskirgan: endi har kim o'z sayt akkauntidan bron qiladi va «💳 Saytda to'lash» "
+                      "orqali o'zi to'laydi.", show_alert=True)
 
 
 @router.callback_query(F.data.startswith("cxl:"))
@@ -822,9 +741,6 @@ async def cancel_booking_ask(call: CallbackQuery):
     if found[1].get("status") in ("cancelled", "failed"):
         await call.answer("Bu bron allaqachon bekor qilingan yoki amalga oshmagan", show_alert=True)
         return
-    if found[1].get("approval") and call.from_user.id != OWNER_ID:
-        await call.answer("Bu bronni bot egasi boshqaradi — bekor qilish uchun unga yozing.", show_alert=True)
-        return
     kb = InlineKeyboardBuilder()
     kb.button(text="✅ Ha, bekor qilish", callback_data=f"cxy:{prefix}")
     kb.button(text="↩️ Yo'q", callback_data=f"cxn:{prefix}")
@@ -836,7 +752,10 @@ async def cancel_booking_ask(call: CallbackQuery):
 @router.callback_query(F.data.startswith("cxn:"))
 async def cancel_booking_no(call: CallbackQuery):
     await call.answer()
-    await call.message.edit_reply_markup(reply_markup=booking.cancel_markup(call.data.split(":", 1)[1]))
+    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])  # "Saytda to'lash" ham qaytadi
+    markup = (timers.view(found[1], call.message.chat.id)[1] if found
+              else booking.cancel_markup(call.data.split(":", 1)[1]))
+    await call.message.edit_reply_markup(reply_markup=markup)
 
 
 @router.callback_query(F.data.startswith("cxy:"))
@@ -846,9 +765,6 @@ async def cancel_booking_yes(call: CallbackQuery):
         await call.answer("Bron topilmadi", show_alert=True)
         return
     owner_id, b = found
-    if b.get("approval") and call.from_user.id != OWNER_ID:
-        await call.answer("Bu bronni bot egasi boshqaradi.", show_alert=True)
-        return
     await call.answer("Bekor qilinmoqda...")
     if not await cancel_order(call, owner_id, b):
         return
@@ -857,28 +773,87 @@ async def cancel_booking_yes(call: CallbackQuery):
                                               f"({b['from_name']} → {b['to_name']}, {b['departure']})", parse_mode=None)
 
 
-# ---------- saytga kirish (faqat bot egasi) ----------
+# ---------- profil va saytga kirish (har bir foydalanuvchi o'z eticket akkaunti bilan) ----------
+
+def profile_view(uid: int):
+    user, session = users.get(uid), sessions.get(uid)
+    saved = users.passengers(uid)
+    name = users.display_name(uid) or user.get("name") or (Passenger(**saved[0]).full_name if saved else "—")
+    linked = bool(session.account)
+    text = (f"👤 <b>Profil</b>\n\n"
+            f"Ism: {html.escape(name, quote=False)}\n"
+            f"Telegram raqam: {'+' + user['phone'] if user.get('phone') else '—'}\n"
+            f"Saqlangan yo'lovchilar: {len(saved)} ta\n"
+            f"Bronlar: {len(users.bookings(uid))} ta\n\n"
+            f"🌐 <b>eticket.uzrailpass.uz akkaunti:</b>\n{html.escape(session.status())}\n\n"
+            + ("Bron shu akkauntdan qilinadi — chiptani bron xabaridagi <b>💳 Saytda to'lash</b> tugmasi orqali "
+               "o'z kartangizdan to'laysiz." if linked else
+               "⚠️ Akkaunt ulanmagan — bron va kuzatuv ishlamaydi. <b>🔑 Saytga kirish</b> ni bosing."))
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔄 Boshqa raqam bilan kirish" if linked else "🔑 Saytga kirish", callback_data="prf:login")
+    if linked:
+        kb.button(text="🚪 Akkauntni uzish", callback_data="prf:logout")
+    kb.adjust(1)
+    return text, kb.as_markup()
+
+
+@router.message(F.text == MENU_PROFILE)
+@router.message(Command("profile"))
+async def profile(message: Message, state: FSMContext):
+    await state.clear()
+    text, markup = profile_view(message.from_user.id)
+    await message.answer(text, reply_markup=markup)
+
+
+@router.callback_query(F.data == "prf:login")
+async def profile_login(call: CallbackQuery, state: FSMContext):
+    await call.answer()
+    await ask_site_login(call.message, state, call.from_user.id)
+
+
+@router.callback_query(F.data == "prf:logout")
+async def profile_logout_ask(call: CallbackQuery):
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Ha, uzish", callback_data="prf:logout_yes")
+    kb.button(text="↩️ Yo'q", callback_data="prf:home")
+    kb.adjust(2)
+    await call.answer()
+    await call.message.edit_text("Sayt akkauntini uzaymi? Raqam va parol botdan o'chiriladi. Faol kuzatuvlaringiz "
+                                 "qayta kirmaguningizcha bron qila olmaydi.", reply_markup=kb.as_markup())
+
+
+@router.callback_query(F.data == "prf:logout_yes")
+async def profile_logout(call: CallbackQuery):
+    sessions.get(call.from_user.id).logout()
+    await call.answer("Akkaunt uzildi")
+    text, markup = profile_view(call.from_user.id)
+    await call.message.edit_text(text, reply_markup=markup)
+
+
+@router.callback_query(F.data == "prf:home")
+async def profile_home(call: CallbackQuery):
+    await call.answer()
+    text, markup = profile_view(call.from_user.id)
+    await call.message.edit_text(text, reply_markup=markup)
+
 
 @router.message(F.text == MENU_LOGIN)
 @router.message(Command("login"))
 async def login_start(message: Message, state: FSMContext):
-    if message.from_user.id != OWNER_ID:
-        await message.answer("Bu bo'lim faqat bot egasi uchun.")
-        return
-    await ask_site_login(message, state)
+    await ask_site_login(message, state, message.from_user.id)
 
 
-async def ask_site_login(message: Message, state: FSMContext):
-    """Saytga kirish: raqamni so'raydi (menyu tugmasi, /login yoki admin panel)."""
+async def ask_site_login(message: Message, state: FSMContext, uid: int):
+    """Saytga kirish: raqamni so'raydi (Profil, /login yoki admin panel)."""
     await state.clear()
-    phone = users.get(OWNER_ID).get("phone")
+    phone = users.get(uid).get("phone")
     kb = InlineKeyboardBuilder()
     if phone:
         kb.button(text=f"📱 +{phone} bilan kirish", callback_data="login_saved")
     await message.answer(
-        f"Hozir: {html.escape(session.status())}\n\n"
-        "Saytga qaysi raqam bilan kiraman? Tugmani bosing yoki boshqa raqam yozing "
-        "(masalan <code>+998901234567</code>):",
+        f"Hozir: {html.escape(sessions.get(uid).status())}\n\n"
+        "<b>eticket.uzrailpass.uz</b> ga qaysi raqam bilan kiraman? Tugmani bosing yoki saytdagi raqamingizni "
+        "yozing (masalan <code>+998901234567</code>):",
         reply_markup=kb.as_markup(),
     )
     await state.set_state(Login.phone)
@@ -889,7 +864,7 @@ async def login_saved_phone(call: CallbackQuery, state: FSMContext):
     await call.answer()
     await state.update_data(phone=users.get(call.from_user.id)["phone"])
     await state.set_state(Login.password)
-    await call.message.edit_text("Sayt parolini yuboring (xabar darhol o'chiriladi):")
+    await call.message.edit_text("Saytdagi parolingizni yuboring (xabar darhol o'chiriladi):")
 
 
 @router.message(Login.phone, F.text)
@@ -901,7 +876,7 @@ async def login_phone(message: Message, state: FSMContext):
         return
     await state.update_data(phone=phone)
     await state.set_state(Login.password)
-    await message.answer("Sayt parolini yuboring (xabar darhol o'chiriladi):")
+    await message.answer("Saytdagi parolingizni yuboring (xabar darhol o'chiriladi):")
 
 
 @router.message(Login.password, F.text)
@@ -914,17 +889,21 @@ async def login_password(message: Message, state: FSMContext):
         pass
     phone = (await state.get_data())["phone"]
     await state.clear()
-    wait = await message.answer("Saytga fon rejimida kirilmoqda...")
+    session = sessions.get(message.from_user.id)
+    wait = await message.answer("Saytga fon rejimida kirilmoqda (20–40 soniya)...")
+    retry = f"Qayta urinish: <b>{MENU_PROFILE}</b> → <b>🔑 Saytga kirish</b>"
     try:
         await session.set_account(phone, password)
     except UzRailError as e:
-        await wait.edit_text(f"❌ {html.escape(str(e))}\nQayta urinish: {MENU_LOGIN}")
+        await wait.edit_text(f"❌ {html.escape(str(e))}\n{retry}")
         return
     except Exception as e:
         logging.exception("Login xatosi")
-        await wait.edit_text(f"❌ Kutilmagan xato: {html.escape(e.__class__.__name__)}\nQayta urinish: {MENU_LOGIN}")
+        await wait.edit_text(f"❌ Kutilmagan xato: {html.escape(e.__class__.__name__)}\n{retry}")
         return
-    await wait.edit_text(f"✅ Saytga kirildi: {html.escape(session.status())}")
+    await wait.edit_text(f"✅ Saytga kirildi: {html.escape(session.status())}\n\n"
+                         "Endi bron sizning akkauntingizdan qilinadi — chiptani «💳 Saytda to'lash» orqali "
+                         "o'zingiz to'laysiz.")
 
 
 # ---------- 2-qadam: yo'lovchilar ----------
@@ -1499,8 +1478,8 @@ async def abort(call: CallbackQuery, state: FSMContext):
 async def start_monitor(call: CallbackQuery, state: FSMContext):
     await call.answer()
     await call.message.edit_reply_markup()
-    if not session.account:
-        await call.message.answer(f"⚠️ Avval bot egasi <b>{MENU_LOGIN}</b> orqali saytga kirishi kerak.")
+    if not sessions.linked(call.from_user.id):
+        await call.message.answer(NEED_LOGIN)
         return
     data = await state.get_data()
     m = Monitor(
@@ -1532,9 +1511,10 @@ async def book(call: CallbackQuery, state: FSMContext):
     if len(picked) != n:
         await call.answer(f"Har bir yo'lovchiga joy tanlang: {len(picked)}/{n}", show_alert=True)
         return
+    session = sessions.get(call.from_user.id)  # bron foydalanuvchining o'z akkauntidan
     if not session.account:
         await call.answer()
-        await call.message.answer(f"⚠️ Avval bot egasi <b>{MENU_LOGIN}</b> orqali saytga kirishi kerak.")
+        await call.message.answer(NEED_LOGIN)
         return
     await call.answer("Bron qilinmoqda...")
     await call.message.edit_reply_markup()
@@ -1571,7 +1551,7 @@ async def book(call: CallbackQuery, state: FSMContext):
     await state.clear()
     record = booking.booking_record(order_id, train, choice, data["passengers"], data["from_name"], data["to_name"])
     record["expires_at"] = await booking.payment_deadline(client, session, order_id)
-    # foydalanuvchiga va bot egasiga taymerli xabar; boshqa foydalanuvchiniki — egasining tasdig'i va to'lovini kutadi
+    # foydalanuvchiga taymerli xabar («Saytda to'lash» va «Bekor qilish» tugmalari bilan)
     await timers.announce(call.from_user.id, record, name=call.from_user.full_name)
 
 
@@ -1579,7 +1559,7 @@ async def main():
     global monitors, WEBAPP_URL, timers
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
-    timers = BookingTimers(bot, users, client, session, OWNER_ID)
+    timers = BookingTimers(bot, users, client, sessions, OWNER_ID)
     timers.resume_all()  # bot qayta ishga tushgan bo'lsa — davom etayotgan bron taymerlari
 
     async def notify(chat_id: int, text: str, order_id: str | None = None):
@@ -1588,17 +1568,17 @@ async def main():
         if order_id:  # kuzatuv orqali qilingan bron — to'lov taymeri
             timers.start(chat_id, sent.message_id, order_id)
 
-    monitors = MonitorManager(client, session, notify, OWNER_ID, POLL_INTERVAL, on_booked=timers.announce)
+    monitors = MonitorManager(client, sessions, notify, OWNER_ID, POLL_INTERVAL, on_booked=timers.announce)
     dp = Dispatcher()
     dp.include_router(router)
     watcher = asyncio.create_task(monitors.run())
 
     # Ilova (Telegram Mini App): mahalliy veb-server + HTTPS tunnel
     client_ru = UzRailClient(lang="ru")
-    ctx = webapp.AppContext(bot=bot, client=client, session=session, users=users, monitors=monitors,
+    ctx = webapp.AppContext(bot=bot, client=client, sessions=sessions, users=users, monitors=monitors,
                             owner_id=OWNER_ID, allowed_ids=ALLOWED_IDS, poll_interval=POLL_INTERVAL,
                             client_ru=client_ru, timers=timers,
-                            proxy=site_proxy.SiteProxy(bot.token, session, client),
+                            proxy=site_proxy.SiteProxy(bot.token, timers.session_for, client),
                             access=access, set_access=lambda uid, grant: apply_access(bot, uid, grant))
     runner = await webapp.start_server(ctx, WEBAPP_PORT)
     tunnel = None
@@ -1608,7 +1588,7 @@ async def main():
             tunnel, WEBAPP_URL = await webapp.start_tunnel(WEBAPP_PORT)
         menu = MenuButtonWebApp(text="Ilova", web_app=WebAppInfo(url=WEBAPP_URL))
         await bot.set_chat_menu_button(menu_button=menu)
-        ctx.public_url = timers.pay_base = WEBAPP_URL  # "Saytda to'lash" — sayt bot egasining akkaunti bilan ochiladi
+        ctx.public_url = timers.pay_base = WEBAPP_URL  # "Saytda to'lash" — sayt bron egasining akkaunti bilan ochiladi
         # Umumiy tugma Telegram'da kechikib yangilanadi — ma'lum foydalanuvchilarga darhol alohida o'rnatamiz
         for chat_id in ALLOWED_IDS | set(users.ids()):
             try:

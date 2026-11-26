@@ -9,10 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from booking import SERVICE_FEE, SalesClosed, booking_record, booking_text, payment_deadline, reserve
+from booking import SalesClosed, booking_record, booking_text, payment_deadline, reserve
 from categories import describe
 from seats import SeatChoice, choose_seats
-from site_auth import SiteSession
+from site_auth import SessionStore, SiteSession
 from uzrail import RateLimitError, UzRailClient, UzRailError
 
 MONITORS_FILE = Path(__file__).with_name("monitors.json")
@@ -57,10 +57,10 @@ class MonitorManager:
     MAX_FAILS = 3
     FAIL_COOLDOWN = 30  # sekund
 
-    def __init__(self, client: UzRailClient, session: SiteSession, notify: Notify,
+    def __init__(self, client: UzRailClient, sessions: SessionStore, notify: Notify,
                  owner_id: int, interval: float = 1.0, on_booked: OnBooked | None = None):
         self.client = client
-        self.session = session
+        self.sessions = sessions  # har bir kuzatuv o'z egasining sayt akkaunti bilan bron qiladi
         self.notify = notify
         self.on_booked = on_booked
         self.owner_id = owner_id
@@ -100,20 +100,23 @@ class MonitorManager:
 
     # ---------- xabarlar ----------
 
+    def session(self, m: Monitor) -> SiteSession:
+        return self.sessions.get(m.chat_id)
+
     async def _tell(self, monitor: Monitor | None, text: str, order_id: str | None = None):
-        """Bot egasiga va kuzatuvni yaratgan foydalanuvchiga xabar beradi (bron bo'lsa — bekor qilish tugmasi bilan)."""
-        targets = {self.owner_id} | ({monitor.chat_id} if monitor else set())
+        """Kuzatuvni yaratgan foydalanuvchiga xabar beradi (umumiy ogohlantirish — bot egasiga)."""
+        targets = {monitor.chat_id} if monitor else {self.owner_id}
         for chat_id in targets:
             try:
                 await self.notify(chat_id, text, order_id=order_id)
             except Exception:
                 log.exception("Xabar yuborilmadi: %s", chat_id)
 
-    async def _alert(self, key: str, text: str, every: float = 600):
+    async def _alert(self, key: str, text: str, every: float = 600, monitor: Monitor | None = None):
         """Bir xil ogohlantirishni har `every` sekundda bir martadan ko'p yubormaydi."""
         if time.time() - self._last_alert.get(key, 0) >= every:
             self._last_alert[key] = time.time()
-            await self._tell(None, text)
+            await self._tell(monitor, text)
 
     # ---------- asosiy sikl ----------
 
@@ -142,16 +145,19 @@ class MonitorManager:
             await asyncio.sleep(max(0.0, self.interval - (time.monotonic() - started)))
 
     async def _keep_logged_in(self):
-        """Kuzatuv bor ekan, sayt tokenini oldindan yangilab turadi — bron paytida login kutilmasin."""
+        """Kuzatuv bor ekan, har bir foydalanuvchining sayt tokenini oldindan yangilab turadi — bron paytida
+        login kutilmasin."""
         while True:
-            if self.active():
+            owners = {m.chat_id: m for m in self.active()}
+            for chat_id, m in owners.items():
                 try:
-                    await self.session.get_token()
+                    await self.sessions.get(chat_id).get_token()
                 except UzRailError as e:
-                    await self._alert("login", f"⚠️ Saytga kirishda xato: {e}")
+                    await self._alert(f"login:{chat_id}", f"⚠️ Saytga kirishda xato: {e}", monitor=m)
                 except Exception as e:
-                    log.exception("Login xatosi")
-                    await self._alert("login", f"⚠️ Saytga kirishda xato: {e.__class__.__name__}")
+                    log.exception("Login xatosi (%s)", chat_id)
+                    await self._alert(f"login:{chat_id}", f"⚠️ Saytga kirishda xato: {e.__class__.__name__}",
+                                      monitor=m)
             await asyncio.sleep(60)
 
     async def _check(self, m: Monitor):
@@ -176,7 +182,7 @@ class MonitorManager:
 
     async def _book(self, m: Monitor, choice: SeatChoice):
         try:
-            order_id = await reserve(self.client, self.session, m.train, choice, m.passengers)
+            order_id = await reserve(self.client, self.session(m), m.train, choice, m.passengers)
         except RateLimitError:
             raise
         except SalesClosed as e:  # sotuv yopilgan — kutishdan foyda yo'q
@@ -197,17 +203,16 @@ class MonitorManager:
                                     "Yo'lovchi ma'lumotlarini tekshirib, kuzatuvni qayta yarating.")
             else:
                 await self._alert(f"book:{m.id}", f"⚠️ Joy topildi, lekin bron bo'lmadi: {e}\n"
-                                                  f"Kuzatish davom etmoqda.\n{m.title()}", every=120)
+                                                  f"Kuzatish davom etmoqda.\n{m.title()}", every=120, monitor=m)
             return
         self._fails.pop(m.id, None)
         m.active = False
         m.order_id = order_id
         self._save()
         record = booking_record(order_id, m.train, choice, m.passengers, m.from_name, m.to_name)
-        record["service_fee"] = SERVICE_FEE  # kuzatuv orqali bron — xizmat haqi bilan
-        record["expires_at"] = await payment_deadline(self.client, self.session, order_id)
+        record["expires_at"] = await payment_deadline(self.client, self.session(m), order_id)
         headline = "🎉 KUZATUVDAGI REYSDA JOY BRON QILINDI!"
-        if self.on_booked:  # saqlaydi va xabar beradi (boshqa foydalanuvchiniki — egasining tasdig'i bilan)
+        if self.on_booked:  # saqlaydi va foydalanuvchiga xabar beradi («Saytda to'lash» tugmasi bilan)
             await self.on_booked(m.chat_id, record, headline)
         else:
             await self._tell(m, f"{headline}\n" + booking_text(record), order_id=order_id)

@@ -13,10 +13,12 @@ copy .env.example .env     # BOT_TOKEN va OWNER_ID ni to'ldiring
 .venv\Scripts\python bot.py
 ```
 
-Botda `/start` → **📱 Telefon raqamni yuborish** tugmasi. Bot egasi uchun shu raqam bilan saytga kirish
-taklif qilinadi (sayt parolini yuborasiz). Bot saytga ko'rinmas (headless) brauzerda kiradi va tokenni
-muddati tugashidan oldin o'zi yangilab turadi. Raqam va parol `account.json` faylida ochiq holda
-saqlanadi — bu faylni hech kimga bermang.
+Botda `/start` → **📱 Telefon raqamni yuborish** tugmasi, so'ng shu raqam bilan saytga kirish taklif qilinadi
+(eticket.uzrailpass.uz parolini yuborasiz). **Har bir foydalanuvchi o'z sayt akkaunti bilan kiradi** — bron
+uning akkauntidan qilinadi va chiptani o'zi saytda to'laydi. Bot saytga ko'rinmas (headless) brauzerda kiradi
+va tokenni muddati tugashidan oldin o'zi yangilab turadi. Raqam va parol ochiq holda saqlanadi: bot egasiniki —
+`account.json`, boshqalarniki — `site_accounts.json` (faqat server egasi o'qiy oladi, `chmod 600`) — bu
+fayllarni hech kimga bermang.
 
 ## Doimiy manzil va avtomatik ishga tushish
 Ilova doimiy manzilda ishlaydi: **https://desktop-qjn6npi.taila6c82c.ts.net** (Tailscale Funnel, bepul).
@@ -137,32 +139,20 @@ har safar saytdan olinadi; ma'lumotnoma joyi tugagan reysda qaysi kategoriyalarn
 ko'rsatish uchun ishlatiladi. Yangi poyezdlar qo'shilsa: `.venv\Scripts\python update_catalog.py`
 (~20 daqiqa), keyin botni qayta ishga tushiring.
 
-## Boshqa foydalanuvchilarning bronlari (egasi tasdiqlaydi va to'laydi)
-Ruxsat berilgan foydalanuvchi bilet olganda (botda, ilovada yoki kuzatuv orqali) joy saytda darhol
-band qilinadi (12 daqiqa), lekin to'lovni bot egasi o'z akkauntidan qiladi:
-- foydalanuvchiga bot egasining **karta raqami** va chipta summasi yuboriladi (botdagi bron xabarida va
-  ilovadagi Chiptalar bo'limida). Karta ilovada kiritiladi: **Profil → To'lov kartasi** (faqat egasiga ko'rinadi);
-- pulni o'tkazgach foydalanuvchi **✅ To'lov qildim** ni bosadi (botda yoki ilovada) — egasiga **💸** xabari
-  **💳 Saytda to'lash** tugmasi bilan keladi;
-- egasiga **🔔 ... bron qildi** xabari keladi: taymer, **💳 Saytda to'lash**, **💳 Karta raqamini
-  yuborish** (kartani qayta yuboradi), **❌ Rad etish**;
-- pul kelgach egasi saytda to'laydi. Bot har 30 soniyada saytdan tekshiradi (buyurtma holati yoki chipta
-  holati PAID/CONFIRMED) va to'lov o'tgach egasiga **💰 To'lov o'tdi** xabarini **✅ Tasdiqlash** tugmasi
-  bilan yuboradi — bu tugma to'lovdan oldin chiqmaydi;
-- **✅ Tasdiqlash** bosilganda bot chiptaning PDF faylini saytdan olib foydalanuvchiga yuboradi. Sayt PDF ni
-  hali bermasa (bir necha urinishdan keyin), egasiga aytiladi va tugmani keyinroq qayta bosish mumkin;
-- to'lov havolasi va bekor qilish tugmasi foydalanuvchiga berilmaydi;
-- rad etilsa — bron saytda bekor qilinadi va foydalanuvchiga xabar boradi;
-- 12 daqiqada to'lanmasa — bron bekor bo'ladi, ikkala tomonga ham xabar boradi.
-
-Egasining o'z bronlari oldingidek (to'lov havolasi va bekor qilish tugmasi bilan).
+## Har kim o'z akkauntidan bron qiladi va o'zi to'laydi
+- **👤 Profil** (botda) yoki ilovadagi **Profil** → **🔑 Saytga kirish**: o'z eticket.uzrailpass.uz raqami va
+  paroli. Kirilmaguncha bron va kuzatuv ishlamaydi. **🚪 Akkauntni uzish** — raqam va parol botdan o'chiriladi.
+- Bron (botda, ilovada yoki kuzatuv orqali) shu foydalanuvchining akkauntidan qilinadi; bron xabarida
+  **💳 Saytda to'lash** va **❌ Bronni bekor qilish** tugmalari bo'ladi (ilovada — Chiptalar bo'limida).
+- Bot har 30 soniyada saytdan to'lovni tekshiradi; to'lov o'tgach chipta (PDF) avtomatik yuboriladi.
+- Bot egasiga boshqa foydalanuvchining broni haqida qisqa bildirishnoma keladi. Xizmat haqi olinmaydi.
 
 ## "💳 Saytda to'lash" — qayta login qilmasdan
 Sayt login tokenini faqat `sessionStorage` da saqlaydi, shuning uchun oddiy havola har safar login so'raydi.
-Bot egasining bron xabarlarida (va ilovadagi "Saytda to'lash" tugmasida) havola sayt bot egasining
-akkaunti bilan ochiladi: sayt ilova manzili orqali (proksi, `site_proxy.py`) ochiladi va bot tokeni avtomatik
-qo'yiladi. To'lov saytning o'z sahifasida (karta + SMS kod) qilinadi. Havola imzolangan, bron muddati
-(+15 daqiqa) davomida amal qiladi va faqat bot egasiga yuboriladi — uni boshqalarga bermang.
+Bron xabaridagi (va ilovadagi) havola saytni **bron qilgan foydalanuvchining o'z akkaunti** bilan ochadi:
+sayt ilova manzili orqali (proksi, `site_proxy.py`) ochiladi va uning tokeni avtomatik qo'yiladi. To'lov
+saytning o'z sahifasida (karta + SMS kod) qilinadi. Havola imzolangan, bron muddati (+15 daqiqa) davomida
+amal qiladi va faqat bron egasiga yuboriladi — uni boshqalarga bermang.
 
 ## Bronni bekor qilish
 To'lanmagan bronni bekor qilish mumkin (joylar saytda bo'shatiladi):
@@ -174,7 +164,8 @@ Bekor qilishdan oldin tasdiq so'raladi. To'langan chiptani saytning o'zida qayta
 ## Menyu tugmalari
 - **🎫 Bilet olish** — yangi bron/kuzatuv
 - **🔔 Kuzatuvlarim** — kuzatuvlar ro'yxati va o'chirish
-- **ℹ️ Holat** — sayt akkaunti holati
+- **ℹ️ Holat** — sayt akkauntingiz holati va kuzatuvlar
+- **👤 Profil** — ism, raqam, sayt akkaunti: **🔑 Saytga kirish** / **🚪 Akkauntni uzish**
 - **🛠 Admin panel** (faqat bot egasi) — menyu tugmasi xabarsiz, darhol alohida ilovani ochadi
   (`/admin`, `webapp/admin.html`, API — `admin_api.py`). Menyu tugmasidan ochilgan ilovaga Telegram
   initData bermaydi, shuning uchun havolada bot tokeni bilan imzolangan kalit bor (`?k=`, 30 kun amal
@@ -188,7 +179,6 @@ Bekor qilishdan oldin tasdiq so'raladi. To'langan chiptani saytning o'zida qayta
 
   Admin bergan ism `users.json` da `display_name` bo'lib saqlanadi. Begona odam botga yozsa, egasiga
   **✅ Ruxsat berish / ❌ Rad etish** tugmalari bilan xabar keladi (`access.json`).
-- **🔑 Saytga kirish** (faqat bot egasi) — sayt raqami/parolini o'zgartirish
 - **❌ Bekor qilish**
 
 ## Bot bosqichlari
