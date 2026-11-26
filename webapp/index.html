@@ -291,6 +291,7 @@ const I18N = {
     wait_consecutive: "🔔 Ketma-ket joy chiqishini kutish",
     booked_alert: "Bron qilindi! Vagon {car}, joylar: {seats}.\nTo'lovni saytda tezda amalga oshiring.",
     monitor_alert: "Kuzatuv boshlandi. Har {s} sekundda tekshiriladi, joy chiqishi bilan bron qilib, botda xabar beraman.",
+    monitor_alert_plain: "Kuzatuv boshlandi. Joy chiqishi bilan bron qilib, botda xabar beraman.",
     booked_h: "Bron qilingan", departure: "Jo'nash", arrival: "Yetib borish", seats: "Joylar", price: "Narx", service_fee: "Xizmat haqi",
     order: "Buyurtma", pay: "💳 Saytda to'lash",
     cancel_booking: "❌ Bronni bekor qilish", st_cancelled: "bekor qilingan", cancelled_ok: "Bron bekor qilindi",
@@ -362,6 +363,7 @@ const I18N = {
     wait_consecutive: "🔔 Ждать места подряд",
     booked_alert: "Забронировано! Вагон {car}, места: {seats}.\nОплатите на сайте как можно скорее.",
     monitor_alert: "Отслеживание запущено. Проверка каждые {s} сек.; как только появятся места — забронирую и сообщу в боте.",
+    monitor_alert_plain: "Отслеживание запущено. Как только появятся места — забронирую и сообщу в боте.",
     booked_h: "Забронировано", departure: "Отправление", arrival: "Прибытие", seats: "Места", price: "Цена", service_fee: "Сервисный сбор",
     order: "Заказ", pay: "💳 Оплатить на сайте",
     cancel_booking: "❌ Отменить бронь", st_cancelled: "отменено", cancelled_ok: "Бронь отменена",
@@ -962,7 +964,8 @@ function renderActions() {
   box.querySelectorAll("[data-mon]").forEach(b => b.onclick = () => run(b, async () => {
     const { every_seconds } = await api("/api/monitor", { method: "POST", body: tripBody({ strict: b.dataset.mon === "1" }) });
     tg?.HapticFeedback?.notificationOccurred("success");
-    alertThen(t("monitor_alert", { s: every_seconds }), () => showTab("tickets"));
+    const msg = Number.isFinite(every_seconds) ? t("monitor_alert", { s: +every_seconds.toFixed(1) }) : t("monitor_alert_plain");
+    alertThen(msg, () => showTab("tickets"));
   }));
 }
 
