@@ -85,6 +85,9 @@ Avtomatik ishga tushish uchun `~/.bashrc` va `~/.profile` ga `bash "$HOME/ticket
 qatorini qo'shing.
 
 Panel subdomen beradigan bo'lsa (masalan, konteynerdagi 80/8000-portga yo'naltiradigan), cloudflared kerak emas —
+**faqat panel POST so'rovlarni ham o'tkazsa** (tekshirish: `curl -X POST https://SUBDOMEN/api/places` javobi
+`{"error": ...}` bo'lishi kerak, panel sahifasi emas). Doliyev VPS subdomeni faqat GET'ni o'tkazadi — u yerda
+cloudflared ishlatiladi (`WEBAPP_URL` bo'sh). Aks holda:
 `.env` da:
 ```
 WEBAPP_URL=https://SUBDOMEN
