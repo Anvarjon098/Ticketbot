@@ -326,6 +326,7 @@ const I18N = {
     status: "Holat: {s}", logged_in: "Saytga kirildi ✅", wait: "Kuting...",
     open_in_tg: "Ilovani Telegram bot orqali oching.", fill_first: "Avval o'z ma'lumotlaringizni kiriting",
     error_n: "Xato ({n})",
+    server_busy: "Server hozir javob bermadi (bot qayta ishga tushayotgan bo'lishi mumkin). Bir necha soniyadan keyin qayta urinib ko'ring.",
     ph_last: "Karimov", ph_first: "Aziz", ph_middle: "Akmalovich",
   },
   ru: {
@@ -399,6 +400,7 @@ const I18N = {
     status: "Статус: {s}", logged_in: "Вход выполнен ✅", wait: "Подождите...",
     open_in_tg: "Откройте приложение через Telegram-бота.", fill_first: "Сначала заполните свои данные",
     error_n: "Ошибка ({n})",
+    server_busy: "Сервер сейчас не ответил (бот, возможно, перезапускается). Попробуйте через несколько секунд.",
     ph_last: "Каримов", ph_first: "Азиз", ph_middle: "Акмалович",
   },
 };
@@ -481,7 +483,9 @@ async function api(path, opts = {}) {
     headers: { "X-Telegram-Init-Data": tg?.initData || "", "X-Lang": LANG, "Content-Type": "application/json" },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  const data = await res.json().catch(() => ({}));
+  const data = await res.json().catch(() => null);
+  // JSON kelmasa (masalan, bot qayta ishga tushayotganda server o'rniga panel sahifasi javob beradi)
+  if (data === null) throw Object.assign(new Error(t("server_busy")), { status: res.status });
   if (!res.ok) throw Object.assign(new Error(data.error || t("error_n", { n: res.status })), { status: res.status });
   return data;
 }
