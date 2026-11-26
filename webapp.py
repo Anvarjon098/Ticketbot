@@ -337,7 +337,7 @@ async def places(request: web.Request):
         log.warning("Joylar xaritasi bo'sh: reys %s, ro'yxatda %s joy; javob kalitlari=%s, carGroup=%s, vagonlar=%s",
                     train.get("number"), listed_free, sorted((data or {}).keys()), len(groups),
                     [(len(g.get("cars") or []), sorted((g.get("cars") or [{}])[0].keys())) for g in groups[:3]])
-        raise ApiError("places_unavailable", 502)
+        raise ApiError("places_unavailable", 422)  # 502 ni Cloudflare o'z sahifasiga almashtiradi
     # joyi bor kategoriyalar (aniq son bilan) + shu poyezd turidagi joyi tugagan kategoriyalar (kuzatish uchun)
     # cars — vagonlar va ularning bo'sh joylari: ilovada saytdagidek vagon sxemasida ko'rsatiladi
     return web.json_response({"categories": train_categories(train, data or {}), "cars": car_schemas.cars(data)})
