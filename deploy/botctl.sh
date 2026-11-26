@@ -15,7 +15,11 @@ case "${1:-}" in
     setsid nohup bash -c '
       source deploy/env_noroot.sh
       while true; do
-        [ -f bot.log ] && mv -f bot.log bot.prev.log
+        # Eski loglar logs/ papkasida saqlanadi (oxirgi 10 tasi) — keyin sababini ko'rish uchun
+        if [ -s bot.log ]; then
+          mkdir -p logs && mv -f bot.log "logs/bot-$(date +%Y%m%d-%H%M%S).log"
+          ls -1t logs/bot-*.log 2>/dev/null | tail -n +11 | xargs -r rm -f
+        fi
         .venv/bin/python bot.py >>bot.log 2>&1
         echo "$(date "+%F %T") bot to'\''xtadi, 10 soniyadan keyin qayta ishga tushadi" >>bot.log
         sleep 10

@@ -21,3 +21,4 @@ bin/cloudflared
 .browsers/
 .chromelibs/
 .aptcache/
+logs/
