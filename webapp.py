@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import time
 from dataclasses import dataclass
 from typing import Awaitable, Callable
@@ -329,6 +330,8 @@ async def places(request: web.Request):
     trip_date, from_code, to_code, train = trip_params(await body(request))
     data = await ctx.client.train_places(trip_date, from_code, to_code, train)
     listed_free = sum(c.get("freeSeats", 0) for c in train.get("cars") or [])
+    log.info("Joylar so'raldi: reys %s, sana %s, %s->%s, ro'yxatda %s joy, vagonlar %s ta",
+             train.get("number"), trip_date, from_code, to_code, listed_free, len(car_schemas.cars(data)))
     if listed_free and not car_schemas.cars(data):  # ro'yxatda joy bor, lekin sayt vagonlarni bermadi — sababini ko'rish uchun
         groups = (data or {}).get("carGroup") or []
         log.warning("Joylar xaritasi bo'sh: reys %s, ro'yxatda %s joy; javob kalitlari=%s, carGroup=%s, vagonlar=%s",
@@ -495,8 +498,23 @@ async def transfer_done(request: web.Request):
     return web.json_response({"ok": True})
 
 
+def _app_version() -> str:
+    """Ilova pastida ko'rsatiladigan versiya (git commit) — qaysi kod ishlayotganini bilish uchun."""
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).parent,
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        return out or "?"
+    except Exception:
+        return "?"
+
+
+APP_VERSION = _app_version()
+
+
 async def index(request: web.Request):
-    return web.FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-store, max-age=0"})  # Telegram eski sahifani keshlamasin
+    page = (STATIC_DIR / "index.html").read_text(encoding="utf-8").replace("{{APP_VERSION}}", APP_VERSION)
+    # Telegram eski sahifani keshlamasin
+    return web.Response(text=page, content_type="text/html", headers={"Cache-Control": "no-store, max-age=0"})
 
 
 def create_app(ctx: AppContext) -> web.Application:
