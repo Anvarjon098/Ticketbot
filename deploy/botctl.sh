@@ -30,6 +30,10 @@ case "${1:-}" in
     if running; then kill -- -"$(cat "$PIDFILE")" 2>/dev/null || kill "$(cat "$PIDFILE")"; fi
     pkill -u "$(id -u)" -f "$APP_DIR/.venv/bin/python bot.py" 2>/dev/null
     pkill -u "$(id -u)" -f ".venv/bin/python bot.py" 2>/dev/null
+    # Bot bilan birga ishga tushgan cloudflared va Chromium qolib ketmasin (ular jarayonlar limitini band qiladi)
+    sleep 1
+    pkill -u "$(id -u)" -f "$APP_DIR/bin/cloudflared" 2>/dev/null
+    pkill -u "$(id -u)" -f "$APP_DIR/.browsers/" 2>/dev/null
     rm -f "$PIDFILE"; echo "To'xtatildi" ;;
   restart) "$0" stop; sleep 2; "$0" start ;;
   status)  if running; then echo "Ishlayapti (PID $(cat "$PIDFILE"))"; else echo "Ishlamayapti"; fi ;;
