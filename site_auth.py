@@ -36,6 +36,19 @@ def normalize_phone(raw: str) -> str:
 
 
 async def browser_login(phone: str, password: str) -> str:
+    """Ko'rinmas brauzerda kiradi; Chromium qulasa ("Target crashed"), yangi brauzerda bir marta qayta urinadi."""
+    try:
+        return await _browser_login(phone, password)
+    except LoginError:
+        raise
+    except Exception as e:
+        if "crash" not in str(e).lower() and "closed" not in str(e).lower():
+            raise
+        log.warning("Saytga kirishda Chromium quladi, qayta urinilmoqda: %s", str(e).splitlines()[0])
+        return await _browser_login(phone, password)
+
+
+async def _browser_login(phone: str, password: str) -> str:
     """Ko'rinmas brauzerda login sahifasini to'ldirib, token qaytaradi."""
     async with shared_browser.use() as browser:
         page = await browser.new_page(locale="uz-UZ")

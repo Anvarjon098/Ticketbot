@@ -6,12 +6,16 @@ Bu modul hamma uchun bitta brauzerni ishlatadi va u bir necha daqiqa kerak bo'lm
 """
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from playwright.async_api import Browser, async_playwright
 
 log = logging.getLogger(__name__)
 IDLE_CLOSE = 300  # soniya
+# Jarayon/oqimlar sonini kamaytiradigan sozlamalar (~69 -> ~57). CHROMIUM_ARGS bilan almashtirish mumkin.
+DEFAULT_ARGS = "--renderer-process-limit=1 --no-zygote --num-raster-threads=1 --in-process-gpu --disable-gpu"
+LAUNCH_ARGS = os.getenv("CHROMIUM_ARGS", DEFAULT_ARGS).split()
 
 _lock = asyncio.Lock()
 _pw = None
@@ -53,15 +57,23 @@ async def use():
         if _browser is None or not _browser.is_connected():  # birinchi marta yoki qulagan bo'lsa
             await _shutdown()
             _pw = await async_playwright().start()
-            _browser = await _pw.chromium.launch(headless=True)
+            _browser = await _pw.chromium.launch(headless=True, args=LAUNCH_ARGS)
         _users += 1
         browser = _browser
+    broken = False
     try:
         yield browser
+    except Exception as e:
+        # "Target crashed" va h.k. — brauzer ishdan chiqqan bo'lishi mumkin: keyingi safar yangisi ochiladi
+        broken = any(w in str(e).lower() for w in ("crash", "closed", "disconnected"))
+        raise
     finally:
         async with _lock:
             _users -= 1
-            if _users == 0:
+            if broken and _browser is browser:
+                log.warning("Chromium ishdan chiqdi — yopildi, keyingi so'rovda qayta ishga tushiriladi")
+                await _shutdown()  # buzilgan brauzer — uni ishlatayotgan boshqa so'rovlar ham baribir xato beradi
+            if _users == 0 and _browser is not None:
                 _closer = asyncio.create_task(_close_later())
 
 

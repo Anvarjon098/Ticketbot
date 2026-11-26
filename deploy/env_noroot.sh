@@ -6,3 +6,6 @@ export LD_LIBRARY_PATH="$_L/usr/lib/x86_64-linux-gnu:$_L/lib/x86_64-linux-gnu:$_
 export FONTCONFIG_FILE="$_L/fonts.conf"
 export PYTHONIOENCODING=utf-8
 export PYTHONUNBUFFERED=1
+# Kichik serverda jarayonlar (oqimlar) soni cheklangan: Go (cloudflared) va Node (Playwright) kamroq oqim ochsin
+export GOMAXPROCS=1
+export UV_THREADPOOL_SIZE=2
