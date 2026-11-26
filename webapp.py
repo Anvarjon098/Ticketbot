@@ -68,6 +68,8 @@ MESSAGES = {
     "session_expired": ("Sessiya eskirgan — ilovani qayta oching.", "Сессия устарела — откройте приложение заново."),
     "not_allowed": ("Sizga bu botdan foydalanishga ruxsat berilmagan.", "У вас нет доступа к этому боту."),
     "server_error": ("Serverda kutilmagan xato.", "Непредвиденная ошибка сервера."),
+    "places_unavailable": ("Sayt vagonlar va bo'sh joylar ma'lumotini bermadi. Birozdan keyin qayta urinib ko'ring.",
+                           "Сайт не вернул данные о вагонах и свободных местах. Попробуйте чуть позже."),
     "bad_request": ("Noto'g'ri so'rov.", "Некорректный запрос."),
     "bad_date": ("Sana noto'g'ri.", "Неверная дата."),
     "past_date": ("O'tgan sanani tanlab bo'lmaydi.", "Нельзя выбрать прошедшую дату."),
@@ -326,6 +328,13 @@ async def places(request: web.Request):
     ctx = request.app[CTX]
     trip_date, from_code, to_code, train = trip_params(await body(request))
     data = await ctx.client.train_places(trip_date, from_code, to_code, train)
+    listed_free = sum(c.get("freeSeats", 0) for c in train.get("cars") or [])
+    if listed_free and not car_schemas.cars(data):  # ro'yxatda joy bor, lekin sayt vagonlarni bermadi — sababini ko'rish uchun
+        groups = (data or {}).get("carGroup") or []
+        log.warning("Joylar xaritasi bo'sh: reys %s, ro'yxatda %s joy; javob kalitlari=%s, carGroup=%s, vagonlar=%s",
+                    train.get("number"), listed_free, sorted((data or {}).keys()), len(groups),
+                    [(len(g.get("cars") or []), sorted((g.get("cars") or [{}])[0].keys())) for g in groups[:3]])
+        raise ApiError("places_unavailable", 502)
     # joyi bor kategoriyalar (aniq son bilan) + shu poyezd turidagi joyi tugagan kategoriyalar (kuzatish uchun)
     # cars — vagonlar va ularning bo'sh joylari: ilovada saytdagidek vagon sxemasida ko'rsatiladi
     return web.json_response({"categories": train_categories(train, data or {}), "cars": car_schemas.cars(data)})

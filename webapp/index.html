@@ -277,6 +277,7 @@ const I18N = {
     n_trains: "{date} · {n} ta reys", n_seats: "{n} joy", no_seats: "joy yo'q", on_way: "{time} yo'lda",
     from_price: "{price}dan", sold_out_hint: "🔔 Tanlang — joy chiqishi bilan avtomatik bron qilinadi",
     add_new_companion: "＋ Yangi hamroh qo'shish", any_type: "Farqi yo'q",
+    retry: "🔄 Qayta urinish",
     pick_one: "Kamida bitta yo'lovchini belgilang.", no_free_title: "Bo'sh joy yo'q",
     no_free_text: "Bot reysni kuzatadi va joy chiqishi bilan {n} kishiga avtomatik bron qilib, xabar beradi.",
     mon_strict: "🔔 Kuzatish: faqat ketma-ket joy", mon_loose: "🔔 Kuzatish: bir vagonda bo'lsa yetarli",
@@ -349,6 +350,7 @@ const I18N = {
     n_trains: "{date} · поездов: {n}", n_seats: "мест: {n}", no_seats: "нет мест", on_way: "в пути {time}",
     from_price: "от {price}", sold_out_hint: "🔔 Выберите — забронируем автоматически, как только появятся места",
     add_new_companion: "＋ Добавить нового попутчика", any_type: "Любой",
+    retry: "🔄 Повторить",
     pick_one: "Отметьте хотя бы одного пассажира.", no_free_title: "Свободных мест нет",
     no_free_text: "Бот будет следить за поездом и, как только появятся места, автоматически забронирует их на {n} чел. и пришлёт уведомление.",
     mon_strict: "🔔 Следить: только места подряд", mon_loose: "🔔 Следить: достаточно в одном вагоне",
@@ -902,13 +904,22 @@ async function selectTrain(train) {
   $("car-types").innerHTML = `<div class="spinner" style="margin:6px auto"></div>`;
   $("trip-actions").innerHTML = "";
   $("trip").scrollIntoView({ behavior: "smooth" });
-  await run(null, async () => {
+  try {
     // joylar xaritasidan aniq bo'sh joylar soni (joyi tugaganlari ham ro'yxatda — kuzatish uchun)
     const { categories, cars } = await api("/api/places", { method: "POST", body: tripBody() });
+    if (state.train !== train) return;  // shu orada boshqa reys tanlangan
     state.trainCats = categories; train.categories = categories;  // kartochkada ham aniq sonlar
     state.cars = cars || []; state.carKey = null; state.picked = [];
     renderTrains(); renderCarTypes(); renderActions();
-  });
+  } catch (e) {
+    // Joylar ma'lumoti olinmadi — "joy yo'q" deb kuzatuvga yubormaymiz, qayta urinishni taklif qilamiz
+    if (state.train !== train) return;
+    tg?.HapticFeedback?.notificationOccurred("error");
+    $("car-types").innerHTML = "";
+    $("trip-actions").innerHTML = `<div class="card"><div class="muted">${esc(e.message)}</div>
+      <button class="btn" id="retry-places">${t("retry")}</button></div>`;
+    $("retry-places").onclick = () => selectTrain(train);
+  }
 }
 
 function renderPassengerPick() {
