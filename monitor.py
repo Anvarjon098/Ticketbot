@@ -11,6 +11,7 @@ from typing import Awaitable, Callable
 
 from booking import SERVICE_FEE, SalesClosed, booking_record, booking_text, payment_deadline, reserve
 from categories import describe
+from jsonfile import write_json
 from seats import SeatChoice, choose_seats
 from site_auth import SiteSession
 from uzrail import RateLimitError, UzRailClient, UzRailError
@@ -70,6 +71,7 @@ class MonitorManager:
         self._cooldown: dict[str, float] = {}  # rad etilgandan keyin shu vaqtgacha bron qilinmaydi
         self._turn = 0
         self._last_alert: dict[str, float] = {}
+        self._login_task: asyncio.Task | None = None
         self._load()
 
     # ---------- saqlash ----------
@@ -81,10 +83,7 @@ class MonitorManager:
                 self.monitors[m.id] = m
 
     def _save(self):
-        MONITORS_FILE.write_text(
-            json.dumps([asdict(m) for m in self.monitors.values()], ensure_ascii=False, indent=1),
-            encoding="utf-8",
-        )
+        write_json(MONITORS_FILE, [asdict(m) for m in self.monitors.values()])
 
     def add(self, monitor: Monitor):
         self.monitors[monitor.id] = monitor
@@ -120,7 +119,7 @@ class MonitorManager:
     async def run(self):
         """Har `interval` sekundda bitta so'rov: faol kuzatuvlar navbatma-navbat tekshiriladi."""
         backoff = 0
-        asyncio.create_task(self._keep_logged_in())
+        self._login_task = asyncio.create_task(self._keep_logged_in())  # havola saqlanadi — GC o'chirmasin
         while True:
             started = time.monotonic()
             monitors = self.active()

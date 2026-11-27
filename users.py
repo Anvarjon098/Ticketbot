@@ -3,6 +3,8 @@ import json
 import time
 from pathlib import Path
 
+from jsonfile import write_json
+
 USERS_FILE = Path(__file__).with_name("users.json")
 
 
@@ -20,7 +22,7 @@ class UserStore:
 
     def update(self, user_id: int, **fields):
         self._data.setdefault(str(user_id), {}).update(fields)
-        USERS_FILE.write_text(json.dumps(self._data, ensure_ascii=False, indent=1), encoding="utf-8")
+        write_json(USERS_FILE, self._data)
 
     # ---------- yo'lovchilar (birinchisi — foydalanuvchining o'zi) ----------
 

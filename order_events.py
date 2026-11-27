@@ -91,10 +91,14 @@ class OrderEvents:
         await self._close()
 
     async def _close(self):
-        if self._ws is not None:
-            await self._ws.close()
-        if self._session is not None:
-            await self._session.close()
+        """Yopishdagi xato tashqariga chiqmaydi: u bron natijasini (buyurtma raqamini) yo'qotib qo'ymasin."""
+        try:
+            if self._ws is not None:
+                await self._ws.close()
+            if self._session is not None:
+                await self._session.close()
+        except Exception as e:
+            log.warning("WebSocket yopilmadi: %s", e)
         self._ws = self._session = None
 
     async def wait(self, order_id: str, timeout: float = 90) -> dict | None:

@@ -54,15 +54,33 @@ async def reserve(client: UzRailClient, session: SiteSession, train: dict,
         except AuthError:
             token = await _token(session, force=True)
             order_id = await client.reserve(token, *args, **extra)
-        event = await events.wait(order_id, timeout)
+        try:
+            event = await events.wait(order_id, timeout)
+        except Exception as e:  # kanal xatosi bronni yo'qotmasin — holat snapshot orqali tekshiriladi
+            log.warning("Bron %s: kanal xatosi: %s", order_id, e)
+            event = None
     if event is not None and event.get("status") != "Success":
         log.warning("Bron amalga oshmadi %s: %s", order_id, event)
         error = SalesClosed if is_sales_closed(event) else ReservationFailed
         raise error(f"Bron amalga oshmadi: {message_text(event, 'uz')}",
                                 f"Бронь не оформлена: {message_text(event, 'ru')}")
-    # Muvaffaqiyat xabari kelgan bo'lsa ham (yoki kanaldan javob kelmasa) — buyurtma holatini saytdan tekshiramiz
-    snapshot = await client.order_snapshot(token, order_id)
-    lifecycle = snapshot.get("lifecycle")
+    # Muvaffaqiyat xabari kelgan bo'lsa ham (yoki kanaldan javob kelmasa) — buyurtma holatini saytdan tekshiramiz.
+    # Buyurtma raqami allaqachon bor: tekshiruv xato bersa (tarmoq, token) bronni yo'qotmaymiz — aks holda
+    # kuzatuv buni "rad etildi" deb qayta bron qiladi. Haqiqiy holatni keyin taymer saytdan aniqlaydi.
+    lifecycle = None
+    for attempt in range(2):
+        try:
+            lifecycle = (await client.order_snapshot(token, order_id)).get("lifecycle")
+            break
+        except AuthError:
+            try:
+                token = await _token(session, force=True)
+            except UzRailError as e:
+                log.warning("Bron %s holatini tekshirib bo'lmadi (login): %s", order_id, e)
+                break
+        except UzRailError as e:
+            log.warning("Bron %s holatini tekshirib bo'lmadi: %s", order_id, e)
+            break
     if lifecycle == "FAILED":
         raise ReservationFailed("Bron amalga oshmadi (sayt buyurtmani rad etdi).",
                                 "Бронь не оформлена (сайт отклонил заказ).")

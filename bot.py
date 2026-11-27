@@ -1525,8 +1525,26 @@ async def start_monitor(call: CallbackQuery, state: FSMContext):
     )
 
 
+BOOKING_NOW: set[int] = set()  # hozir bron qilinayotgan foydalanuvchilar — tugma ikki marta bosilsa ikkinchi bron bo'lmasin
+
+
 @router.callback_query(Booking.seats, F.data == "book")
 async def book(call: CallbackQuery, state: FSMContext):
+    uid = call.from_user.id
+    if uid in BOOKING_NOW:
+        await call.answer("Bron qilinmoqda, kuting...")
+        return
+    BOOKING_NOW.add(uid)
+    try:
+        await _book(call, state)
+    finally:
+        BOOKING_NOW.discard(uid)
+
+
+async def _book(call: CallbackQuery, state: FSMContext):
+    if await state.get_state() != Booking.seats.state:  # oldingi bosish bronni allaqachon yakunlagan
+        await call.answer()
+        return
     data = await state.get_data()
     picked, n = data["picked"], len(data["passengers"])
     if len(picked) != n:

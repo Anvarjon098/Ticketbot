@@ -3,6 +3,8 @@ import json
 import time
 from pathlib import Path
 
+from jsonfile import write_json
+
 ACCESS_FILE = Path(__file__).with_name("access.json")
 
 
@@ -21,7 +23,7 @@ class AccessStore:
         self.ids: set[int] = ((env_ids | {int(uid) for uid in self._data["allowed"]}) - denied) | {owner_id}
 
     def _save(self):
-        ACCESS_FILE.write_text(json.dumps(self._data, ensure_ascii=False, indent=1), encoding="utf-8")
+        write_json(ACCESS_FILE, self._data)
 
     def status(self, user_id: int) -> str:
         """"allowed", "pending", "denied" yoki "new"."""

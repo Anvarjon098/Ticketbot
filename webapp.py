@@ -36,6 +36,7 @@ INIT_DATA_MAX_AGE = 24 * 3600
 # bot tokeni bilan imzolangan kalit bo'ladi (faqat /api/admin/... uchun, bot egasi sifatida). /start yangilaydi.
 ADMIN_KEY_TTL = 30 * 24 * 3600
 log = logging.getLogger(__name__)
+_BACKGROUND: set[asyncio.Task] = set()  # fon vazifalari: havola saqlanmasa Python ularni o'chirib yuborishi mumkin
 
 
 @dataclass
@@ -81,6 +82,7 @@ MESSAGES = {
                        "Выберите {n} мест(а) — по одному на каждого пассажира."),
     "seats_taken": ("Tanlangan joylardan biri band bo'lib qoldi. Sxema yangilandi — boshqa joy tanlang.",
                     "Одно из выбранных мест уже заняли. Схема обновлена — выберите другое место."),
+    "booking_in_progress": ("Bron qilinmoqda — kuting.", "Бронирование уже выполняется — подождите."),
     "monitor_not_found": ("Kuzatuv topilmadi.", "Отслеживание не найдено."),
     "owner_only": ("Faqat bot egasi uchun.", "Только для владельца бота."),
     "bad_card": ("Karta raqami noto'g'ri — 16 ta raqam kiriting.", "Неверный номер карты — введите 16 цифр."),
@@ -327,7 +329,21 @@ async def places(request: web.Request):
     return web.json_response({"categories": train_categories(train, data or {}), "cars": car_schemas.cars(data)})
 
 
+BOOKING_NOW: set[int] = set()  # hozir bron qilinayotgan foydalanuvchilar (takroriy so'rov ikkinchi bron qilmasin)
+
+
 async def book(request: web.Request):
+    uid = request["user_id"]
+    if uid in BOOKING_NOW:
+        raise ApiError("booking_in_progress", 429)
+    BOOKING_NOW.add(uid)
+    try:
+        return await _book(request)
+    finally:
+        BOOKING_NOW.discard(uid)
+
+
+async def _book(request: web.Request):
     ctx, uid = request.app[CTX], request["user_id"]
     require_site_account(ctx)
     data = await body(request)
@@ -553,5 +569,7 @@ async def start_tunnel(port: int, timeout: float = 60) -> tuple[asyncio.subproce
         while await proc.stderr.readline():
             pass
 
-    asyncio.create_task(drain())
+    task = asyncio.create_task(drain())
+    _BACKGROUND.add(task)
+    task.add_done_callback(_BACKGROUND.discard)
     return proc, url

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright, TimeoutError as PwTimeout
 
+from jsonfile import write_atomic, write_json
 from uzrail import BASE_URL, UzRailError, decode_jwt, token_expired
 
 ACCOUNT_FILE = Path(__file__).with_name("account.json")
@@ -90,7 +91,7 @@ class SiteSession:
         phone = normalize_phone(phone)
         async with self._lock:
             token = await browser_login(phone, password)
-            ACCOUNT_FILE.write_text(json.dumps({"phone": phone, "password": password}), encoding="utf-8")
+            write_json(ACCOUNT_FILE, {"phone": phone, "password": password}, indent=None)
             self._save(token)
         return phone
 
@@ -121,4 +122,4 @@ class SiteSession:
 
     def _save(self, token: str):
         self._token = token
-        TOKEN_FILE.write_text(token, encoding="utf-8")
+        write_atomic(TOKEN_FILE, token)

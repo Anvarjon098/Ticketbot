@@ -28,6 +28,9 @@ from uzrail import UzRailClient, UzRailError
 TICK = 10  # sekund
 PAY_CHECK_EVERY = 30  # sekund: saytdan "to'landimi" tekshiruvi
 PDF_TRIES, PDF_RETRY_DELAY = 3, 3  # chipta PDF i to'lovdan so'ng darhol tayyor bo'lmasligi mumkin
+SEND_TRIES, SEND_RETRY_DELAY = 3, 5  # bron xabari: internet bir lahza uzilsa qayta urinamiz
+FINISH_TRIES, FINISH_RETRY_DELAY = 10, 30  # muddat tugagach sayt javob bermasa — shuncha marta qayta so'raladi
+RESUME_MAX_AGE = 24 * 3600  # qayta ishga tushganda: muddati shundan oldin tugagan bronlar tiklanmaydi
 log = logging.getLogger(__name__)
 
 
@@ -170,13 +173,21 @@ class BookingTimers:
             phone = f" (+{profile['phone']})" if profile.get("phone") else ""
             record = {**record, "approval": "pending", "by": f"{self.users.display_name(user_id) or user_id}{phone}"}
         self.users.add_booking(user_id, record)
+        # Taymer xabarlardan qat'i nazar ishlaydi: xabar yuborilmasa ham to'lov va muddat kuzatiladi
+        self.ensure_timer(record["order_id"])
         for chat_id in dict.fromkeys([user_id, self.owner_id]):
             text, markup = self.view(record, chat_id, headline)
-            try:
-                sent = await self.bot.send_message(chat_id, text, parse_mode=None, reply_markup=markup)
-                self.start(chat_id, sent.message_id, record["order_id"])
-            except Exception:
-                log.exception("Bron xabari yuborilmadi: %s", chat_id)
+            for attempt in range(SEND_TRIES):
+                try:
+                    sent = await self.bot.send_message(chat_id, text, parse_mode=None, reply_markup=markup)
+                    self.start(chat_id, sent.message_id, record["order_id"])
+                    break
+                except Exception:
+                    if attempt + 1 == SEND_TRIES:
+                        log.exception("Bron xabari yuborilmadi: %s", chat_id)
+                    else:
+                        log.warning("Bron xabari yuborilmadi (%s), qayta urinish...", chat_id)
+                        await asyncio.sleep(SEND_RETRY_DELAY)
         return record
 
     async def _ping_user(self, record_owner: int, text: str):
@@ -291,16 +302,21 @@ class BookingTimers:
         """Xabarni bronga bog'laydi va bron taymerini (bitta vazifa) ishga tushiradi."""
         if remember:
             self.users.add_booking_message(order_id, chat_id, message_id)
+        self.ensure_timer(order_id)
+
+    def ensure_timer(self, order_id: str):
+        """Bron taymeri (bitta vazifa) ishlamayotgan bo'lsa ishga tushiradi."""
         task = self._tasks.get(order_id)
         if not task or task.done():
             self._tasks[order_id] = asyncio.create_task(self._run(order_id))
 
     def resume_all(self):
-        """Bot qayta ishga tushganda: yakunlanmagan bronlar taymerlarini tiklaydi."""
+        """Bot qayta ishga tushganda: yakunlanmagan bronlar taymerlarini tiklaydi (xabari yuborilmaganlarini ham)."""
         for uid in self.users.ids():
             for b in self.users.bookings(uid):
-                if b.get("expires_at") and not b.get("status") and b.get("messages"):
-                    self._tasks[b["order_id"]] = asyncio.create_task(self._run(b["order_id"]))
+                if (b.get("expires_at") and not b.get("status")
+                        and b["expires_at"] > time.time() - RESUME_MAX_AGE):
+                    self.ensure_timer(b["order_id"])
 
     async def _edit(self, chat_id: int, message_id: int, text: str, markup=None):
         try:
@@ -362,11 +378,22 @@ class BookingTimers:
         if not found or found[1].get("status"):
             return
         uid, record = found
-        lifecycle = await self.lifecycle(order_id)
+        # Sayt javob bermasa (None) — taxmin qilmaymiz: oxirgi daqiqada to'langan bo'lishi mumkin
+        lifecycle = None
+        for attempt in range(FINISH_TRIES):
+            lifecycle = await self.lifecycle(order_id)
+            if lifecycle is not None:
+                break
+            if attempt + 1 < FINISH_TRIES:
+                log.warning("Bron %s holati olinmadi, %s s dan keyin qayta so'raladi", order_id, FINISH_RETRY_DELAY)
+                await asyncio.sleep(FINISH_RETRY_DELAY)
         log.info("Bron %s muddati tugadi, saytdagi holat: %s", order_id, lifecycle)
+        found = self.users.find_booking(order_id)  # kutish paytida boshqa joyda yakunlangan bo'lishi mumkin
+        if not found or found[1].get("status"):
+            return
         if is_paid(lifecycle):
             self.users.set_status(uid, order_id, "paid")
-        elif lifecycle in (None, "CANCELLED", "EXPIRED", "FAILED"):
+        elif lifecycle in (None, "CANCELLED", "EXPIRED", "FAILED"):  # None — ~5 daqiqa davomida sayt javob bermadi
             self.users.set_status(uid, order_id, "expired")
         else:  # noma'lum holat — taxmin qilmaymiz
             for chat_id, message_id in record.get("messages", []):
