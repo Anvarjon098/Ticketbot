@@ -14,7 +14,7 @@ aks holda sahifa bo'sh qoladi. (/pages/current-order esa to'lovdan keyingi chipt
 Saytning API va websocket manzillari nisbiy (host: "", wsurl: "/ws"), shuning uchun sayt kodi
 o'zgartirilmasdan ishlaydi.
 
-Havola imzolangan va muddatli (faqat bot egasiga yuboriladi); proksi faqat shu havola orqali
+Havola imzolangan va muddatli (bron egasiga va bot egasiga yuboriladi); proksi faqat shu havola orqali
 o'rnatilgan cookie bilan ishlaydi — begona odam proksidan foydalana olmaydi.
 """
 import asyncio

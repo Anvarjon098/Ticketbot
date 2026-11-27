@@ -226,10 +226,31 @@ def approval_markup(order_id: str, paid: bool = False) -> InlineKeyboardMarkup:
     ]])
 
 
-def transfer_markup(order_id: str) -> InlineKeyboardMarkup:
-    """Foydalanuvchi: chipta pulini kartaga o'tkazgach bot egasiga xabar beradi."""
+def transfer_markup(order_id: str, text: str = "✅ To'lov qildim") -> InlineKeyboardMarkup:
+    """Foydalanuvchi: pulni kartaga o'tkazgach bot egasiga xabar beradi."""
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="✅ To'lov qildim", callback_data=f"tpd:{order_id}"[:60])]])
+        InlineKeyboardButton(text=text, callback_data=f"tpd:{order_id}"[:60])]])
+
+
+FEE_BUTTON = "✅ Xizmat haqini o'tkazdim"
+
+
+def fee_due(record: dict) -> bool:
+    """Xizmat haqi bot egasiga hali o'tkazilmagan (foydalanuvchi o'zi saytda to'laydigan bron)."""
+    return bool(record.get("fee_due")) and not record.get("fee_reported") and record.get("status") not in (
+        "cancelled", "failed", "expired")
+
+
+def fee_text(record: dict, card: dict | None) -> str:
+    """Foydalanuvchiga: xizmat haqini bot egasining kartasiga o'tkazish."""
+    fee = som(record.get("service_fee") or 0)
+    if not card:
+        return f"💼 Xizmat haqi: {fee} — bot egasiga o'tkazing (karta raqamini undan so'rang)."
+    holder = f"\nKarta egasi: {card['holder']}" if card.get("holder") else ""
+    return (f"💼 Xizmat haqi: {fee}\n"
+            f"Karta: {format_card(card['number'])}{holder}\n"
+            f"Chipta pulini saytda o'zingiz to'laysiz, xizmat haqini esa shu kartaga o'tkazing "
+            f"va «{FEE_BUTTON}» ni bosing.")
 
 
 def format_card(number: str) -> str:

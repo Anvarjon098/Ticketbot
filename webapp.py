@@ -273,14 +273,15 @@ async def tickets(request: web.Request):
     own = [m for m in ctx.monitors.monitors.values() if m.chat_id == uid]
     own.sort(key=lambda m: m.created, reverse=True)
     bookings = ctx.users.bookings(uid)
-    if uid == ctx.owner_id and ctx.proxy and ctx.public_url:  # bot egasi saytga qayta login qilmasdan to'laydi
+    if ctx.proxy and ctx.public_url:  # sayt bot egasining akkaunti bilan ochiladi — login so'ralmaydi
         bookings = [{**b, "pay_url": site_proxy.pay_link(ctx.public_url, ctx.bot.token, b["order_id"],
-                                                         b.get("expires_at"))} for b in bookings]
+                                                         b.get("expires_at"))}
+                    if uid == ctx.owner_id or not b.get("approval") else b for b in bookings]
     card = ctx.timers.card() if ctx.timers and uid != ctx.owner_id else None
     if card:  # bot egasi to'laydigan bronlar: chipta pulini o'tkazish uchun karta
         card = {"number": booking.format_card(card["number"]), "holder": card["holder"]}
-        bookings = [{**b, "card": card} if b.get("approval") == "pending" and not b.get("status") else b
-                    for b in bookings]
+        bookings = [{**b, "card": card} if b.get("approval") == "pending" and not b.get("status") else
+                    {**b, "fee_card": card} if booking.fee_due(b) else b for b in bookings]
     return web.json_response({"bookings": bookings, "monitors": [monitor_info(m) for m in own]})
 
 

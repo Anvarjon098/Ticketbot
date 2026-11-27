@@ -774,8 +774,12 @@ async def send_card(call: CallbackQuery):
 async def transfer_done(call: CallbackQuery):
     """Foydalanuvchi chipta pulini bot egasining kartasiga o'tkazdi."""
     found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])
+    fee = bool(found) and booking.fee_due(found[1])
     if not found or not await timers.report_transfer(found[1]["order_id"], call.from_user.id):
         await call.answer("Bron topilmadi, yakunlangan yoki xabar allaqachon berilgan", show_alert=True)
+        return
+    if fee:  # tugma bron xabarining o'zida edi — xabarni report_transfer() allaqachon yangilagan
+        await call.answer("Bot egasiga xizmat haqi o'tkazilgani haqida xabar berildi", show_alert=True)
         return
     await call.answer("Bot egasiga xabar berildi — u tekshirib, chiptani to'laydi", show_alert=True)
     try:  # alohida karta xabaridagi tugma (bron xabarini refresh() allaqachon yangilagan)
@@ -836,7 +840,10 @@ async def cancel_booking_ask(call: CallbackQuery):
 @router.callback_query(F.data.startswith("cxn:"))
 async def cancel_booking_no(call: CallbackQuery):
     await call.answer()
-    await call.message.edit_reply_markup(reply_markup=booking.cancel_markup(call.data.split(":", 1)[1]))
+    found = _find_own_booking(call.from_user.id, call.data.split(":", 1)[1])  # "Saytda to'lash" ham qaytadi
+    markup = (timers.view(found[1], call.message.chat.id)[1] if found
+              else booking.cancel_markup(call.data.split(":", 1)[1]))
+    await call.message.edit_reply_markup(reply_markup=markup)
 
 
 @router.callback_query(F.data.startswith("cxy:"))

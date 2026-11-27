@@ -303,6 +303,8 @@ const I18N = {
     card_saved: "Karta saqlandi", transfer_h: "💳 Chipta pulini o'tkazing", amount: "Summa", copy: "Nusxalash", copied: "Nusxalandi",
     transfer_note: "Pulni shu kartaga o'tkazing. Bot egasi chiptani saytda to'lab tasdiqlagach, chipta botda yuboriladi.",
     transfer_done: "To'lov qildim", transfer_sent: "Bot egasiga xabar berildi",
+    fee_h: "💼 Xizmat haqini o'tkazing", fee_done: "Xizmat haqini o'tkazdim",
+    fee_note: "Chipta pulini saytda o'zingiz to'laysiz (yuqoridagi tugma), xizmat haqini esa shu kartaga o'tkazing.",
     transfer_reported: "✅ To'lov haqida bot egasiga xabar berildi — u tekshirib, chiptani to'laydi. Chipta botda yuboriladi.",
     approved_note: "Bot egasi tasdiqladi — to'lov amalga oshirilmoqda. To'langanda botda xabar keladi.",
     booked_pending_alert: "Bron qilindi! Vagon {car}, joylar: {seats}.\nBot egasiga yuborildi — u tasdiqlab to'lashini kuting.",
@@ -374,6 +376,8 @@ const I18N = {
     card_saved: "Карта сохранена", transfer_h: "💳 Переведите оплату за билет", amount: "Сумма", copy: "Копировать", copied: "Скопировано",
     transfer_note: "Переведите деньги на эту карту. Когда владелец бота оплатит билет на сайте и подтвердит, билет придёт в боте.",
     transfer_done: "Я оплатил(а)", transfer_sent: "Владелец бота уведомлён",
+    fee_h: "💼 Переведите сервисный сбор", fee_done: "Я перевёл(а) сбор",
+    fee_note: "Билет оплачиваете сами на сайте (кнопка выше), а сервисный сбор переведите на эту карту.",
     transfer_reported: "✅ Владелец бота уведомлён об оплате — он проверит и оплатит билет. Билет придёт в боте.",
     approved_note: "Владелец бота подтвердил — идёт оплата. Когда оплатит, придёт сообщение в боте.",
     booked_pending_alert: "Забронировано! Вагон {car}, места: {seats}.\nОтправлено владельцу бота — дождитесь подтверждения и оплаты.",
@@ -740,6 +744,15 @@ async function loadTickets() {
           ${status || b.card ? "" : managed ? `<div class="muted" style="margin-top:10px">${t(b.approval === "approved" ? "approved_note" : "pending_note")}</div>` : `
           <button class="btn" data-pay="${esc(b.pay_url)}">${t("pay")}</button>
           <button class="btn danger" data-cancel-order="${esc(b.order_id)}">${t("cancel_booking")}</button>`}
+          ${b.fee_card ? `<div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:var(--soft)">
+            <div class="big">${t("fee_h")}</div>
+            <div class="kv"><span>${t("amount")}</span><span><b>${money(b.service_fee)}</b></span></div>
+            <div class="kv"><span>${t("card_number")}</span><span><b class="times">${esc(b.fee_card.number)}</b></span></div>
+            ${b.fee_card.holder ? `<div class="kv"><span>${t("card_holder")}</span><span>${esc(b.fee_card.holder)}</span></div>` : ""}
+            <div style="display:flex; justify-content:flex-end; margin-top:10px">
+              <button class="btn small secondary" style="background:var(--card)" data-copy="${esc(b.fee_card.number.replace(/\s/g, ""))}">📋 ${t("copy")}</button></div>
+            <div class="muted" style="margin-top:8px">${t("fee_note")}</div>
+            <button class="btn" style="margin-top:10px" data-transferred="${esc(b.order_id)}">✅ ${t("fee_done")}</button></div>` : ""}
           ${status && status !== "paid" ? `<button class="btn danger" data-remove-order="${esc(b.order_id)}">🗑 ${t("remove_booking")}</button>` : ""}
         </div>`; }).join("");
     }
